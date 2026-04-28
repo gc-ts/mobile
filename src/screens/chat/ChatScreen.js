@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AppTopBar from '../../components/AppTopBar';
+import { Feather } from '@expo/vector-icons';
 import ScreenBackdrop from '../../components/ScreenBackdrop';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,10 +20,10 @@ import { chatAPI } from '../../services/api';
 import { spacing } from '../../styles/theme';
 
 const QUICK_QUESTIONS = [
-  'Сколько у меня дней отпуска?',
-  'Когда выплачивается аванс?',
-  'Как оформить больничный?',
-  'График работы в праздники',
+  { icon: '🌴', text: 'Сколько у меня дней отпуска?' },
+  { icon: '💸', text: 'Когда выплачивается аванс?' },
+  { icon: '🏥', text: 'Как оформить больничный?' },
+  { icon: '🎉', text: 'График работы в праздники' },
 ];
 
 function getInitials(name) {
@@ -38,6 +38,36 @@ function getInitials(name) {
 
 function trimTitle(text) {
   return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+}
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function BotLogo({ size = 40, colors }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: colors.moss,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text
+        style={{
+          color: colors.pistachio,
+          fontSize: size * 0.46,
+          fontFamily: 'Fraunces_500Medium',
+          lineHeight: size * 0.5,
+        }}
+      >
+        T
+      </Text>
+    </View>
+  );
 }
 
 export default function ChatScreen({ navigation, route }) {
@@ -209,31 +239,41 @@ export default function ChatScreen({ navigation, route }) {
 
   const s = makeStyles(colors);
 
-  const renderMessage = ({ item }) => {
+  const renderMessage = ({ item, index }) => {
     const isUser = item.sender === 'user';
+    const prev = messages[index - 1];
+    const isGrouped = prev && prev.sender === item.sender;
+
+    if (isUser) {
+      return (
+        <View style={[s.row, s.rowUser, isGrouped && s.rowGrouped]}>
+          <View style={s.userColumn}>
+            <View style={s.userBubble}>
+              <Text style={s.userBubbleText}>{item.text}</Text>
+            </View>
+            <Text style={s.userTime}>{formatTime(item.timestamp)}</Text>
+          </View>
+        </View>
+      );
+    }
 
     return (
-      <View style={s.messageRow}>
-        <View style={[s.avatar, isUser ? s.userAvatar : s.botAvatar]}>
-          <Text style={s.avatarText}>{isUser ? getInitials(employee?.full_name) : 'AI'}</Text>
+      <View style={[s.row, s.rowBot, isGrouped && s.rowGrouped]}>
+        <View style={s.avatarSlot}>
+          {!isGrouped ? <BotLogo size={36} colors={colors} /> : null}
         </View>
-
-        <View style={s.messageContent}>
-          <View style={s.messageCard}>
-            <Text style={s.messageText}>{item.text}</Text>
+        <View style={s.botColumn}>
+          {!isGrouped ? <Text style={s.botName}>Техна</Text> : null}
+          <View style={s.botBubble}>
+            <Text style={s.botBubbleText}>{item.text}</Text>
             {item.source ? (
               <View style={s.sourceRow}>
-                <Text style={s.sourceText}>Источник: {item.source}</Text>
+                <Feather name="file-text" size={11} color={colors.ink3} />
+                <Text style={s.sourceText} numberOfLines={1}>{item.source}</Text>
               </View>
             ) : null}
           </View>
-
-          <Text style={s.timeText}>
-            {new Date(item.timestamp).toLocaleTimeString('ru-RU', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          <Text style={s.botTime}>{formatTime(item.timestamp)}</Text>
         </View>
       </View>
     );
@@ -242,42 +282,52 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <SafeAreaView style={s.root}>
       <ScreenBackdrop />
-      <AppTopBar />
 
       <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backBtnText}>← ЧАТЫ</Text>
+        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()}>
+          <Feather name="chevron-left" size={22} color={colors.ink} />
         </TouchableOpacity>
 
-        <View style={s.headerText}>
-          <Text style={s.headerTitle}>AI-ассистент «Техна»</Text>
-          <Text style={s.headerSubtitle}>
-            Отвечаю на вопросы по HR-процессам на основе документов компании
-          </Text>
-          <Text style={s.headerKicker}>{chatTitle}</Text>
+        <View style={s.headerCenter}>
+          <View style={s.headerTitleRow}>
+            <BotLogo size={28} colors={colors} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.headerTitle} numberOfLines={1}>Техна</Text>
+              <View style={s.statusRow}>
+                <View style={s.onlineDot} />
+                <Text style={s.headerStatus}>{isStreaming ? 'печатает…' : 'онлайн'}</Text>
+              </View>
+            </View>
+          </View>
         </View>
+
+        <TouchableOpacity style={s.iconBtn}>
+          <Feather name="more-vertical" size={20} color={colors.ink2} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={s.flex}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {messages.length === 0 ? (
-          <View style={s.emptyState}>
-            <View style={s.emptyMarker}>
-              <Text style={s.emptyMarkerText}>AI</Text>
-            </View>
-            <Text style={s.emptyTitle}>Техна</Text>
+          <View style={s.empty}>
+            <BotLogo size={88} colors={colors} />
+            <Text style={s.emptyTitle}>Привет!</Text>
             <Text style={s.emptySubtitle}>
-              Отвечаю на вопросы по HR-процессам на основе документов компании.
+              Я Техна — AI-ассистент по HR-вопросам.{'\n'}С чего начнём?
             </Text>
 
             <View style={s.quickList}>
-              <Text style={s.quickKicker}>Популярные вопросы</Text>
-              {QUICK_QUESTIONS.map((question) => (
-                <TouchableOpacity key={question} style={s.quickBtn} onPress={() => setInputValue(question)}>
-                  <Text style={s.quickText}>{question}</Text>
+              {QUICK_QUESTIONS.map((q) => (
+                <TouchableOpacity
+                  key={q.text}
+                  style={s.quickChip}
+                  onPress={() => sendMessage(q.text)}
+                >
+                  <Text style={s.quickEmoji}>{q.icon}</Text>
+                  <Text style={s.quickText}>{q.text}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -290,27 +340,28 @@ export default function ChatScreen({ navigation, route }) {
             contentContainerStyle={s.msgList}
             renderItem={renderMessage}
             onContentSizeChange={scrollToBottom}
+            ListFooterComponent={
+              isTyping ? (
+                <View style={[s.row, s.rowBot]}>
+                  <View style={s.avatarSlot}>
+                    <BotLogo size={36} colors={colors} />
+                  </View>
+                  <View style={s.botColumn}>
+                    <View style={s.typingBubble}>
+                      <ActivityIndicator size="small" color={colors.moss} />
+                    </View>
+                  </View>
+                </View>
+              ) : null
+            }
           />
         )}
 
-        {isTyping ? (
-          <View style={s.typingRow}>
-            <View style={[s.avatar, s.botAvatar]}>
-              <Text style={s.avatarText}>AI</Text>
-            </View>
-            <View style={s.typingCard}>
-              <ActivityIndicator size="small" color={colors.moss} />
-            </View>
-          </View>
-        ) : null}
-
         <View style={s.inputWrap}>
-          <Text style={s.inputKicker}>Сообщение</Text>
-
           <View style={s.inputBar}>
             <TextInput
               style={s.input}
-              placeholder="Напишите ваш вопрос..."
+              placeholder="Сообщение для Техны…"
               placeholderTextColor={colors.ink3}
               value={inputValue}
               onChangeText={setInputValue}
@@ -320,17 +371,20 @@ export default function ChatScreen({ navigation, route }) {
             />
 
             <TouchableOpacity
-              style={[s.sendBtn, (!inputValue.trim() || isStreaming) && s.sendBtnDisabled]}
+              style={[
+                s.sendBtn,
+                (!inputValue.trim() || isStreaming) && s.sendBtnDisabled,
+              ]}
               onPress={() => sendMessage(inputValue)}
               disabled={!inputValue.trim() || isStreaming}
             >
-              <Text style={s.sendBtnText}>ОТПРАВИТЬ</Text>
+              <Feather
+                name="arrow-up"
+                size={18}
+                color={inputValue.trim() && !isStreaming ? colors.pistachio : colors.ink3}
+              />
             </TouchableOpacity>
           </View>
-
-          <Text style={s.inputHint}>
-            Ответы основаны на документах компании. Точную информацию уточняйте у HR.
-          </Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -347,151 +401,180 @@ const makeStyles = (colors) =>
       flex: 1,
     },
     header: {
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.lg,
-      gap: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      paddingTop: Platform.OS === 'android' ? spacing.xxl : spacing.sm,
       backgroundColor: colors.paper,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.line,
     },
-    backBtn: {
-      alignSelf: 'flex-start',
-      borderWidth: 1,
-      borderColor: colors.line,
-      backgroundColor: 'transparent',
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+    iconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    backBtnText: {
-      color: colors.ink2,
-      fontSize: 10,
-      letterSpacing: 1,
-      fontFamily: 'JetBrainsMono_600SemiBold',
+    headerCenter: {
+      flex: 1,
     },
-    headerText: {
-      gap: 6,
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     headerTitle: {
       color: colors.ink,
-      fontSize: 28,
-      fontFamily: 'Fraunces_400Regular',
+      fontSize: 18,
+      fontFamily: 'Fraunces_500Medium',
+      lineHeight: 22,
     },
-    headerSubtitle: {
-      color: colors.ink2,
-      fontSize: 14,
-      lineHeight: 21,
-      fontFamily: 'Inter_400Regular',
-    },
-    headerKicker: {
-      color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      fontFamily: 'JetBrainsMono_500Medium',
-    },
-    msgList: {
-      padding: spacing.lg,
-      gap: spacing.lg,
-      paddingBottom: spacing.xxxl,
-    },
-    messageRow: {
+    statusRow: {
       flexDirection: 'row',
-      gap: spacing.md,
-      alignItems: 'flex-start',
-    },
-    avatar: {
-      width: 44,
-      height: 44,
       alignItems: 'center',
-      justifyContent: 'center',
-    },
-    botAvatar: {
-      backgroundColor: colors.moss,
-    },
-    userAvatar: {
-      backgroundColor: colors.sage,
-      borderRadius: 999,
-    },
-    avatarText: {
-      color: colors.paper,
-      fontSize: 11,
-      letterSpacing: 0.8,
-      fontFamily: 'JetBrainsMono_600SemiBold',
-    },
-    messageContent: {
-      flex: 1,
       gap: 6,
     },
-    messageCard: {
+    onlineDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: colors.pistachio,
+    },
+    headerStatus: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+      letterSpacing: 0.4,
+    },
+
+    msgList: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.lg,
+      paddingBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    row: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      alignItems: 'flex-end',
+    },
+    rowBot: {
+      justifyContent: 'flex-start',
+      paddingRight: spacing.xxxl,
+    },
+    rowUser: {
+      justifyContent: 'flex-end',
+      paddingLeft: spacing.xxxl,
+    },
+    rowGrouped: {
+      marginTop: -spacing.sm,
+    },
+    avatarSlot: {
+      width: 36,
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
+    botColumn: {
+      flexShrink: 1,
+      gap: 4,
+    },
+    botName: {
+      color: colors.ink3,
+      fontSize: 11,
+      letterSpacing: 0.6,
+      fontFamily: 'JetBrainsMono_500Medium',
+      paddingLeft: 4,
+    },
+    botBubble: {
       backgroundColor: colors.paper,
-      borderWidth: 1,
-      borderColor: colors.line,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
+      borderTopLeftRadius: 4,
+      borderTopRightRadius: 18,
+      borderBottomLeftRadius: 18,
+      borderBottomRightRadius: 18,
     },
-    messageText: {
+    botBubbleText: {
       color: colors.ink,
       fontSize: 15,
-      lineHeight: 24,
+      lineHeight: 23,
       fontFamily: 'Inter_400Regular',
     },
+    botTime: {
+      color: colors.ink3,
+      fontSize: 10,
+      fontFamily: 'JetBrainsMono_400Regular',
+      paddingLeft: 4,
+    },
     sourceRow: {
-      marginTop: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: spacing.sm,
       paddingTop: spacing.sm,
       borderTopWidth: 1,
       borderTopColor: colors.line,
+      borderStyle: 'dashed',
     },
     sourceText: {
-      color: colors.ink3,
-      fontSize: 11,
-      lineHeight: 16,
-      fontFamily: 'JetBrainsMono_400Regular',
-    },
-    timeText: {
+      flex: 1,
       color: colors.ink3,
       fontSize: 11,
       fontFamily: 'JetBrainsMono_400Regular',
-      paddingHorizontal: 2,
     },
-    typingRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.md,
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.sm,
-    },
-    typingCard: {
+    typingBubble: {
       backgroundColor: colors.paper,
-      borderWidth: 1,
-      borderColor: colors.line,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 14,
+      borderTopLeftRadius: 4,
+      borderTopRightRadius: 18,
+      borderBottomLeftRadius: 18,
+      borderBottomRightRadius: 18,
+      alignSelf: 'flex-start',
+    },
+
+    userColumn: {
+      flexShrink: 1,
+      alignItems: 'flex-end',
+      gap: 4,
+    },
+    userBubble: {
+      backgroundColor: colors.moss,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 4,
+      borderBottomLeftRadius: 18,
+      borderBottomRightRadius: 18,
+      maxWidth: '100%',
     },
-    emptyState: {
+    userBubbleText: {
+      color: colors.paper,
+      fontSize: 15,
+      lineHeight: 23,
+      fontFamily: 'Inter_400Regular',
+    },
+    userTime: {
+      color: colors.ink3,
+      fontSize: 10,
+      fontFamily: 'JetBrainsMono_400Regular',
+      paddingRight: 4,
+    },
+
+    empty: {
       flex: 1,
-      justifyContent: 'center',
-      padding: spacing.xl,
-      gap: spacing.md,
-    },
-    emptyMarker: {
-      width: 72,
-      height: 72,
-      backgroundColor: colors.moss,
       alignItems: 'center',
       justifyContent: 'center',
-      alignSelf: 'center',
-    },
-    emptyMarkerText: {
-      color: colors.paper,
-      fontSize: 16,
-      letterSpacing: 1,
-      fontFamily: 'JetBrainsMono_600SemiBold',
+      paddingHorizontal: spacing.xl,
+      gap: spacing.md,
     },
     emptyTitle: {
       color: colors.ink,
-      fontSize: 36,
+      fontSize: 32,
       textAlign: 'center',
-      fontFamily: 'Fraunces_400Regular',
+      fontFamily: 'Fraunces_500Medium',
+      marginTop: spacing.md,
     },
     emptySubtitle: {
       color: colors.ink2,
@@ -499,84 +582,65 @@ const makeStyles = (colors) =>
       lineHeight: 22,
       textAlign: 'center',
       fontFamily: 'Inter_400Regular',
+      marginBottom: spacing.lg,
     },
     quickList: {
       gap: spacing.sm,
-      marginTop: spacing.md,
+      width: '100%',
     },
-    quickKicker: {
-      color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.4,
-      textTransform: 'uppercase',
-      fontFamily: 'JetBrainsMono_500Medium',
-      marginBottom: 4,
-    },
-    quickBtn: {
-      backgroundColor: 'transparent',
-      borderWidth: 1,
-      borderColor: colors.line,
-      paddingHorizontal: spacing.md,
+    quickChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.paper,
+      paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
+      borderRadius: 999,
+    },
+    quickEmoji: {
+      fontSize: 18,
     },
     quickText: {
-      color: colors.ink2,
-      fontSize: 13,
-      lineHeight: 19,
-      fontFamily: 'Inter_400Regular',
+      flex: 1,
+      color: colors.ink,
+      fontSize: 14,
+      fontFamily: 'Inter_500Medium',
     },
+
     inputWrap: {
-      backgroundColor: colors.paper,
-      borderTopWidth: 1,
-      borderTopColor: colors.line,
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.md,
-      paddingBottom: spacing.lg,
-      gap: spacing.sm,
-    },
-    inputKicker: {
-      color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      fontFamily: 'JetBrainsMono_500Medium',
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: Platform.OS === 'ios' ? spacing.md : spacing.sm,
+      backgroundColor: colors.bg,
     },
     inputBar: {
       flexDirection: 'row',
       alignItems: 'flex-end',
       gap: spacing.sm,
+      backgroundColor: colors.paper,
+      borderRadius: 28,
+      paddingLeft: spacing.lg,
+      paddingRight: 6,
+      paddingVertical: 6,
     },
     input: {
       flex: 1,
-      backgroundColor: colors.bg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      paddingHorizontal: spacing.md,
-      paddingVertical: 14,
+      color: colors.ink,
       fontSize: 15,
       lineHeight: 22,
-      color: colors.ink,
-      maxHeight: 120,
       fontFamily: 'Inter_400Regular',
+      paddingVertical: 10,
+      maxHeight: 120,
     },
     sendBtn: {
-      backgroundColor: colors.ink,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      width: 40,
+      height: 40,
+      borderRadius: 999,
+      backgroundColor: colors.moss,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     sendBtnDisabled: {
-      opacity: 0.45,
-    },
-    sendBtnText: {
-      color: colors.bg,
-      fontSize: 10,
-      letterSpacing: 1.1,
-      fontFamily: 'JetBrainsMono_600SemiBold',
-    },
-    inputHint: {
-      color: colors.ink3,
-      fontSize: 11,
-      lineHeight: 16,
-      fontFamily: 'JetBrainsMono_400Regular',
+      backgroundColor: colors.bg2,
     },
   });
