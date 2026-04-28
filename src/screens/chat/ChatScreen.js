@@ -1,21 +1,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppTopBar from '../../components/AppTopBar';
+import ScreenBackdrop from '../../components/ScreenBackdrop';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { chatAPI } from '../../services/api';
-import { radius, spacing } from '../../styles/theme';
+import { spacing } from '../../styles/theme';
 
 const QUICK_QUESTIONS = [
   'Сколько у меня дней отпуска?',
@@ -26,7 +28,16 @@ const QUICK_QUESTIONS = [
 
 function getInitials(name) {
   if (!name) return 'U';
-  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function trimTitle(text) {
+  return text.length > 50 ? `${text.slice(0, 50)}...` : text;
 }
 
 export default function ChatScreen({ navigation, route }) {
@@ -39,35 +50,36 @@ export default function ChatScreen({ navigation, route }) {
   const [chatTitle, setChatTitle] = useState('Новый чат');
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef(null);
   const cancelStreamRef = useRef(null);
 
-  // Load chat from storage
   useEffect(() => {
     (async () => {
       const raw = await AsyncStorage.getItem(storageKey);
       const chats = raw ? JSON.parse(raw) : [];
-      const chat = chats.find((c) => c.id === chatId);
+      const chat = chats.find((item) => item.id === chatId);
       if (chat) {
         setMessages(chat.messages || []);
         setChatTitle(chat.title || 'Новый чат');
       }
     })();
+
     return () => {
       cancelStreamRef.current?.();
     };
-  }, [chatId]);
+  }, [chatId, storageKey]);
 
   const saveMessages = useCallback(
-    async (newMessages, newTitle) => {
+    async (nextMessages, nextTitle) => {
       const raw = await AsyncStorage.getItem(storageKey);
       const chats = raw ? JSON.parse(raw) : [];
-      const updated = chats.map((c) => {
-        if (c.id !== chatId) return c;
+      const updated = chats.map((chat) => {
+        if (chat.id !== chatId) return chat;
         return {
-          ...c,
-          title: newTitle ?? c.title,
-          messages: newMessages,
+          ...chat,
+          title: nextTitle ?? chat.title,
+          messages: nextMessages,
           updatedAt: new Date().toISOString(),
         };
       });
@@ -80,86 +92,118 @@ export default function ChatScreen({ navigation, route }) {
     flatListRef.current?.scrollToEnd({ animated: true });
   };
 
-  const sendMessage = async (text) => {
-    const trimmed = text.trim();
+  const sendMessage = async (rawText) => {
+    const trimmed = rawText.trim();
     if (!trimmed || isStreaming) return;
 
-    const userMsg = {
+    const userMessage = {
       id: Date.now(),
       text: trimmed,
       sender: 'user',
       timestamp: new Date().toISOString(),
     };
 
-    const nextTitle = messages.length === 0 ? trimmed.slice(0, 40) : chatTitle;
-    const withUser = [...messages, userMsg];
-    setMessages(withUser);
+    const nextTitle = messages.length === 0 ? trimTitle(trimmed) : chatTitle;
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setChatTitle(nextTitle);
     setInputValue('');
     setIsStreaming(true);
-    await saveMessages(withUser, nextTitle);
+    setIsTyping(true);
+    await saveMessages(updatedMessages, nextTitle);
     setTimeout(scrollToBottom, 100);
 
     const botId = Date.now() + 1;
-    const botMsg = { id: botId, text: '', sender: 'bot', timestamp: new Date().toISOString(), source: null };
-    setMessages((prev) => [...prev, botMsg]);
-    setTimeout(scrollToBottom, 100);
-
-    let accumulated = '';
-    let source = null;
+    let fullText = '';
+    let source = '';
+    let botMessageAdded = false;
 
     const cancel = await chatAPI.sendMessageStream(
       trimmed,
       employee?.employee_id,
       (chunk) => {
-        if (chunk.type === 'context') {
+        if (chunk.type === 'context' && chunk.source) {
           source = chunk.source;
-        } else if (chunk.type === 'token') {
-          accumulated += chunk.delta || '';
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === botId ? { ...m, text: accumulated, source } : m
-            )
-          );
+        } else if (chunk.type === 'token' && chunk.delta) {
+          fullText += chunk.delta;
+
+          if (!botMessageAdded) {
+            setIsTyping(false);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: botId,
+                text: fullText,
+                sender: 'bot',
+                timestamp: new Date().toISOString(),
+                source,
+              },
+            ]);
+            botMessageAdded = true;
+          } else {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === botId ? { ...message, text: fullText, source } : message
+              )
+            );
+          }
+
           setTimeout(scrollToBottom, 50);
         }
       },
       async () => {
         setIsStreaming(false);
+        setIsTyping(false);
         cancelStreamRef.current = null;
+
         setMessages((prev) => {
-          const final = prev.map((m) =>
-            m.id === botId ? { ...m, text: accumulated, source } : m
+          const finalMessages = prev.map((message) =>
+            message.id === botId ? { ...message, text: fullText, source } : message
           );
-          saveMessages(final, nextTitle);
-          return final;
+          saveMessages(finalMessages, nextTitle);
+          return finalMessages;
         });
       },
       async () => {
-        // Fallback to non-streaming on error
         setIsStreaming(false);
+        setIsTyping(false);
         cancelStreamRef.current = null;
+
         try {
-          const res = await chatAPI.sendMessage(trimmed, employee?.employee_id);
-          const fallbackText = res.response || 'Не удалось получить ответ.';
+          const fallback = await chatAPI.sendMessage(trimmed, employee?.employee_id);
+          const fallbackText = fallback.response || 'Не удалось получить ответ.';
           setMessages((prev) => {
-            const final = prev.map((m) =>
-              m.id === botId ? { ...m, text: fallbackText, source: res.source } : m
-            );
-            saveMessages(final, nextTitle);
-            return final;
+            const finalMessages = [
+              ...prev,
+              {
+                id: botId,
+                text: fallbackText,
+                sender: 'bot',
+                timestamp: new Date().toISOString(),
+                source: fallback.source,
+              },
+            ];
+            saveMessages(finalMessages, nextTitle);
+            return finalMessages;
           });
         } catch {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === botId
-                ? { ...m, text: 'Произошла ошибка. Попробуйте снова.' }
-                : m
-            )
-          );
+          setMessages((prev) => {
+            const finalMessages = [
+              ...prev,
+              {
+                id: botId,
+                text: 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.',
+                sender: 'bot',
+                timestamp: new Date().toISOString(),
+              },
+            ];
+            saveMessages(finalMessages, nextTitle);
+            return finalMessages;
+          });
         }
       }
     );
+
     cancelStreamRef.current = cancel;
   };
 
@@ -167,67 +211,73 @@ export default function ChatScreen({ navigation, route }) {
 
   const renderMessage = ({ item }) => {
     const isUser = item.sender === 'user';
+
     return (
-      <View style={[s.msgRow, isUser ? s.msgRowUser : s.msgRowBot]}>
-        {!isUser && (
-          <View style={s.botAvatar}>
-            <Text style={s.botAvatarText}>Т</Text>
+      <View style={s.messageRow}>
+        <View style={[s.avatar, isUser ? s.userAvatar : s.botAvatar]}>
+          <Text style={s.avatarText}>{isUser ? getInitials(employee?.full_name) : 'AI'}</Text>
+        </View>
+
+        <View style={s.messageContent}>
+          <View style={s.messageCard}>
+            <Text style={s.messageText}>{item.text}</Text>
+            {item.source ? (
+              <View style={s.sourceRow}>
+                <Text style={s.sourceText}>Источник: {item.source}</Text>
+              </View>
+            ) : null}
           </View>
-        )}
-        <View style={[s.bubble, isUser ? s.bubbleUser : s.bubbleBot]}>
-          <Text style={[s.bubbleText, isUser && { color: colors.userBubbleText }]}>
-            {item.text}
-            {isStreaming && item.id === messages[messages.length - 1]?.id && !isUser && (
-              <Text style={s.cursor}>▋</Text>
-            )}
-          </Text>
-          {item.source && (
-            <Text style={s.source}>📄 {item.source}</Text>
-          )}
-          <Text style={[s.time, isUser && { color: colors.userBubbleText, opacity: 0.7 }]}>
-            {new Date(item.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+
+          <Text style={s.timeText}>
+            {new Date(item.timestamp).toLocaleTimeString('ru-RU', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </Text>
         </View>
-        {isUser && (
-          <View style={s.userAvatar}>
-            <Text style={s.userAvatarText}>{getInitials(employee?.full_name)}</Text>
-          </View>
-        )}
       </View>
     );
   };
 
   return (
     <SafeAreaView style={s.root}>
-      {/* Header */}
+      <ScreenBackdrop />
+      <AppTopBar />
+
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backIcon}>←</Text>
+          <Text style={s.backBtnText}>← ЧАТЫ</Text>
         </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Text style={s.headerTitle} numberOfLines={1}>{chatTitle}</Text>
-          <Text style={s.headerSub}>AI-ассистент «Техна»</Text>
+
+        <View style={s.headerText}>
+          <Text style={s.headerTitle}>AI-ассистент «Техна»</Text>
+          <Text style={s.headerSubtitle}>
+            Отвечаю на вопросы по HR-процессам на основе документов компании
+          </Text>
+          <Text style={s.headerKicker}>{chatTitle}</Text>
         </View>
-        <View style={{ width: 40 }} />
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+        style={s.flex}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        {/* Messages */}
         {messages.length === 0 ? (
-          <View style={s.empty}>
-            <View style={s.emptyIcon}>
-              <Text style={s.emptyIconText}>Т</Text>
+          <View style={s.emptyState}>
+            <View style={s.emptyMarker}>
+              <Text style={s.emptyMarkerText}>AI</Text>
             </View>
-            <Text style={s.emptyTitle}>AI-ассистент «Техна»</Text>
-            <Text style={s.emptySub}>Задайте вопрос или выберите тему ниже</Text>
+            <Text style={s.emptyTitle}>Техна</Text>
+            <Text style={s.emptySubtitle}>
+              Отвечаю на вопросы по HR-процессам на основе документов компании.
+            </Text>
+
             <View style={s.quickList}>
-              {QUICK_QUESTIONS.map((q) => (
-                <TouchableOpacity key={q} style={s.quickBtn} onPress={() => sendMessage(q)}>
-                  <Text style={s.quickText}>{q}</Text>
+              <Text style={s.quickKicker}>Популярные вопросы</Text>
+              {QUICK_QUESTIONS.map((question) => (
+                <TouchableOpacity key={question} style={s.quickBtn} onPress={() => setInputValue(question)}>
+                  <Text style={s.quickText}>{question}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -243,37 +293,44 @@ export default function ChatScreen({ navigation, route }) {
           />
         )}
 
-        {/* Typing indicator */}
-        {isStreaming && messages[messages.length - 1]?.text === '' && (
+        {isTyping ? (
           <View style={s.typingRow}>
-            <View style={s.botAvatar}>
-              <Text style={s.botAvatarText}>Т</Text>
+            <View style={[s.avatar, s.botAvatar]}>
+              <Text style={s.avatarText}>AI</Text>
             </View>
-            <View style={s.typingBubble}>
+            <View style={s.typingCard}>
               <ActivityIndicator size="small" color={colors.moss} />
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Input */}
-        <View style={s.inputBar}>
-          <TextInput
-            style={s.input}
-            placeholder="Напишите сообщение..."
-            placeholderTextColor={colors.ink3}
-            value={inputValue}
-            onChangeText={setInputValue}
-            multiline
-            maxLength={1000}
-            editable={!isStreaming}
-          />
-          <TouchableOpacity
-            style={[s.sendBtn, (!inputValue.trim() || isStreaming) && s.sendBtnDisabled]}
-            onPress={() => sendMessage(inputValue)}
-            disabled={!inputValue.trim() || isStreaming}
-          >
-            <Text style={s.sendIcon}>↑</Text>
-          </TouchableOpacity>
+        <View style={s.inputWrap}>
+          <Text style={s.inputKicker}>Сообщение</Text>
+
+          <View style={s.inputBar}>
+            <TextInput
+              style={s.input}
+              placeholder="Напишите ваш вопрос..."
+              placeholderTextColor={colors.ink3}
+              value={inputValue}
+              onChangeText={setInputValue}
+              editable={!isStreaming}
+              multiline
+              maxLength={1000}
+            />
+
+            <TouchableOpacity
+              style={[s.sendBtn, (!inputValue.trim() || isStreaming) && s.sendBtnDisabled]}
+              onPress={() => sendMessage(inputValue)}
+              disabled={!inputValue.trim() || isStreaming}
+            >
+              <Text style={s.sendBtnText}>ОТПРАВИТЬ</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.inputHint}>
+            Ответы основаны на документах компании. Точную информацию уточняйте у HR.
+          </Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -282,209 +339,244 @@ export default function ChatScreen({ navigation, route }) {
 
 const makeStyles = (colors) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bg },
+    root: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    flex: {
+      flex: 1,
+    },
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.lg,
+      gap: spacing.md,
       backgroundColor: colors.paper,
       borderBottomWidth: 1,
       borderBottomColor: colors.line,
-      paddingTop: Platform.OS === 'android' ? spacing.xxxl : spacing.sm,
     },
     backBtn: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignSelf: 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: 'transparent',
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
-    backIcon: { fontSize: 24, color: colors.moss, fontWeight: '600' },
-    headerCenter: { flex: 1, alignItems: 'center' },
+    backBtnText: {
+      color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    headerText: {
+      gap: 6,
+    },
     headerTitle: {
-      fontSize: 16,
-      fontWeight: '600',
       color: colors.ink,
-      fontFamily: 'Inter_600SemiBold',
+      fontSize: 28,
+      fontFamily: 'Fraunces_400Regular',
     },
-    headerSub: {
-      fontSize: 12,
-      color: colors.ink3,
+    headerSubtitle: {
+      color: colors.ink2,
+      fontSize: 14,
+      lineHeight: 21,
       fontFamily: 'Inter_400Regular',
+    },
+    headerKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
     },
     msgList: {
       padding: spacing.lg,
-      gap: spacing.md,
-      paddingBottom: spacing.xl,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxxl,
     },
-    msgRow: {
+    messageRow: {
       flexDirection: 'row',
-      gap: spacing.sm,
-      marginBottom: spacing.md,
+      gap: spacing.md,
+      alignItems: 'flex-start',
     },
-    msgRowBot: { justifyContent: 'flex-start' },
-    msgRowUser: { justifyContent: 'flex-end' },
-    botAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: radius.sm,
-      backgroundColor: colors.moss,
+    avatar: {
+      width: 44,
+      height: 44,
       alignItems: 'center',
       justifyContent: 'center',
-      flexShrink: 0,
     },
-    botAvatarText: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.pistachio,
-      fontFamily: 'Inter_700Bold',
+    botAvatar: {
+      backgroundColor: colors.moss,
     },
     userAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: radius.full,
       backgroundColor: colors.sage,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
+      borderRadius: 999,
     },
-    userAvatarText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+    avatarText: {
+      color: colors.paper,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
-    bubble: {
-      maxWidth: '75%',
-      padding: spacing.md,
-      borderRadius: radius.md,
+    messageContent: {
+      flex: 1,
+      gap: 6,
     },
-    bubbleBot: {
-      backgroundColor: colors.botBubbleBg,
+    messageCard: {
+      backgroundColor: colors.paper,
       borderWidth: 1,
-      borderColor: colors.botBubbleBorder,
+      borderColor: colors.line,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
     },
-    bubbleUser: {
-      backgroundColor: colors.userBubbleBg,
-    },
-    bubbleText: {
-      fontSize: 15,
-      lineHeight: 22,
+    messageText: {
       color: colors.ink,
+      fontSize: 15,
+      lineHeight: 24,
       fontFamily: 'Inter_400Regular',
     },
-    cursor: { color: colors.moss },
-    source: {
-      fontSize: 11,
-      color: colors.ink3,
-      marginTop: spacing.xs,
-      fontFamily: 'Inter_400Regular',
+    sourceRow: {
+      marginTop: spacing.md,
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
     },
-    time: {
-      fontSize: 11,
+    sourceText: {
       color: colors.ink3,
-      marginTop: spacing.xs,
-      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 16,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    timeText: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+      paddingHorizontal: 2,
     },
     typingRow: {
       flexDirection: 'row',
-      gap: spacing.sm,
+      alignItems: 'flex-start',
+      gap: spacing.md,
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.sm,
     },
-    typingBubble: {
-      padding: spacing.md,
-      backgroundColor: colors.botBubbleBg,
-      borderRadius: radius.md,
+    typingCard: {
+      backgroundColor: colors.paper,
       borderWidth: 1,
-      borderColor: colors.botBubbleBorder,
+      borderColor: colors.line,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
     },
-    empty: {
+    emptyState: {
       flex: 1,
-      alignItems: 'center',
       justifyContent: 'center',
       padding: spacing.xl,
       gap: spacing.md,
     },
-    emptyIcon: {
+    emptyMarker: {
       width: 72,
       height: 72,
-      borderRadius: radius.xl,
       backgroundColor: colors.moss,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: spacing.sm,
+      alignSelf: 'center',
     },
-    emptyIconText: {
-      fontSize: 32,
-      fontWeight: '700',
-      color: colors.pistachio,
-      fontFamily: 'Inter_700Bold',
+    emptyMarkerText: {
+      color: colors.paper,
+      fontSize: 16,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
     emptyTitle: {
-      fontSize: 20,
-      fontWeight: '700',
       color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 36,
+      textAlign: 'center',
+      fontFamily: 'Fraunces_400Regular',
     },
-    emptySub: {
+    emptySubtitle: {
+      color: colors.ink2,
       fontSize: 14,
-      color: colors.ink3,
+      lineHeight: 22,
       textAlign: 'center',
       fontFamily: 'Inter_400Regular',
     },
     quickList: {
-      width: '100%',
       gap: spacing.sm,
       marginTop: spacing.md,
     },
+    quickKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+      marginBottom: 4,
+    },
     quickBtn: {
-      backgroundColor: colors.paper,
+      backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.md,
-      padding: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
     },
     quickText: {
-      fontSize: 14,
-      color: colors.moss,
-      fontFamily: 'Inter_500Medium',
-      fontWeight: '500',
+      color: colors.ink2,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily: 'Inter_400Regular',
+    },
+    inputWrap: {
+      backgroundColor: colors.paper,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.lg,
+      gap: spacing.sm,
+    },
+    inputKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
     },
     inputBar: {
       flexDirection: 'row',
       alignItems: 'flex-end',
       gap: spacing.sm,
-      padding: spacing.md,
-      backgroundColor: colors.paper,
-      borderTopWidth: 1,
-      borderTopColor: colors.line,
     },
     input: {
       flex: 1,
       backgroundColor: colors.bg,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.md,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingVertical: 14,
       fontSize: 15,
+      lineHeight: 22,
       color: colors.ink,
       maxHeight: 120,
       fontFamily: 'Inter_400Regular',
     },
     sendBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: radius.full,
-      backgroundColor: colors.moss,
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: colors.ink,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
     },
-    sendBtnDisabled: { opacity: 0.4 },
-    sendIcon: {
-      fontSize: 20,
-      color: colors.pistachio,
-      fontWeight: '700',
+    sendBtnDisabled: {
+      opacity: 0.45,
+    },
+    sendBtnText: {
+      color: colors.bg,
+      fontSize: 10,
+      letterSpacing: 1.1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    inputHint: {
+      color: colors.ink3,
+      fontSize: 11,
+      lineHeight: 16,
+      fontFamily: 'JetBrainsMono_400Regular',
     },
   });

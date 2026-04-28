@@ -12,10 +12,20 @@ import { useAuth } from '../contexts/AuthContext';
 const Tab = createBottomTabNavigator();
 const Root = createStackNavigator();
 
-function TabIcon({ focused, label, emoji, colors }) {
+function TabIcon({ focused, label, marker, colors }) {
   return (
     <View style={styles.tabIconContainer}>
-      <Text style={[styles.tabEmoji, { opacity: focused ? 1 : 0.5 }]}>{emoji}</Text>
+      <View
+        style={[
+          styles.tabMarker,
+          {
+            backgroundColor: focused ? colors.ink : colors.paper,
+            borderColor: focused ? colors.ink : colors.line,
+          },
+        ]}
+      >
+        <Text style={[styles.tabMarkerText, { color: focused ? colors.bg : colors.ink2 }]}>{marker}</Text>
+      </View>
       <Text style={[styles.tabLabel, { color: focused ? colors.tabActive : colors.tabInactive }]}>
         {label}
       </Text>
@@ -31,14 +41,18 @@ function MainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.tabBarBg,
+          backgroundColor: colors.paper,
           borderTopColor: colors.line,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 92 : 78,
+          paddingBottom: Platform.OS === 'ios' ? 26 : 10,
+          paddingTop: 12,
+          paddingHorizontal: 12,
         },
         tabBarShowLabel: false,
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
       }}
     >
       <Tab.Screen
@@ -46,7 +60,7 @@ function MainTabs() {
         component={ChatNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Чат" emoji="💬" colors={colors} />
+            <TabIcon focused={focused} label="CHAT" marker="AI" colors={colors} />
           ),
         }}
       />
@@ -55,7 +69,7 @@ function MainTabs() {
         component={ForumNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Форум" emoji="📋" colors={colors} />
+            <TabIcon focused={focused} label="FORUM" marker="KB" colors={colors} />
           ),
         }}
       />
@@ -64,7 +78,7 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Профиль" emoji="👤" colors={colors} />
+            <TabIcon focused={focused} label="SETTINGS" marker="ST" colors={colors} />
           ),
         }}
       />
@@ -90,13 +104,23 @@ const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 6,
   },
-  tabEmoji: {
-    fontSize: 22,
+  tabMarker: {
+    minWidth: 40,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  tabMarkerText: {
+    fontSize: 10,
+    fontFamily: 'JetBrainsMono_600SemiBold',
+    letterSpacing: 0.6,
   },
   tabLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: 'JetBrainsMono_500Medium',
+    letterSpacing: 1,
   },
 });

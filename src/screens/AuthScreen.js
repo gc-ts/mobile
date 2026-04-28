@@ -1,122 +1,140 @@
 import React, { useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
+  View,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../services/api';
-import { radius, spacing } from '../styles/theme';
+import { spacing } from '../styles/theme';
 
 export default function AuthScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark } = useTheme();
   const { login } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
   const [form, setForm] = useState({
     login: '',
     password: '',
     employeeId: '',
     email: '',
     fullName: '',
-    position: '',
-    department: '',
   });
 
-  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const setField = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setMessage('');
+    setIsSuccess(false);
+  };
+
+  const setFeedback = (text, success = false) => {
+    setMessage(text);
+    setIsSuccess(success);
+  };
 
   const handleLogin = async () => {
-    if (!form.login || !form.password) {
-      Alert.alert('Ошибка', 'Заполните все поля');
+    if (!form.login.trim() || !form.password.trim()) {
+      setFeedback('Заполните логин и пароль.');
       return;
     }
+
     setLoading(true);
+    setFeedback('');
+
     try {
-      const res = await authAPI.login(form.login, form.password);
+      const res = await authAPI.login(form.login.trim(), form.password);
       await login(res.employee, res.token);
-    } catch (e) {
-      Alert.alert('Ошибка входа', e.response?.data?.message || 'Не удалось войти');
+    } catch {
+      setFeedback('Ошибка входа. Проверьте данные.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegister = async () => {
-    if (!form.employeeId || !form.email || !form.password || !form.fullName) {
-      Alert.alert('Ошибка', 'Заполните все обязательные поля');
+    if (!form.employeeId.trim() || !form.email.trim() || !form.password.trim() || !form.fullName.trim()) {
+      setFeedback('Заполните обязательные поля.');
       return;
     }
+
     setLoading(true);
+    setFeedback('');
+
     try {
       await authAPI.register({
-        employeeId: form.employeeId,
-        email: form.email,
+        employeeId: form.employeeId.trim(),
+        email: form.email.trim(),
         password: form.password,
-        fullName: form.fullName,
-        position: form.position,
-        department: form.department,
+        fullName: form.fullName.trim(),
       });
-      Alert.alert('Готово', 'Регистрация завершена! Теперь войдите.');
+      setField('login', form.employeeId.trim());
       setIsLogin(true);
-    } catch (e) {
-      Alert.alert('Ошибка', e.response?.data?.message || 'Не удалось зарегистрироваться');
+      setFeedback('Регистрация успешна! Теперь войдите.', true);
+    } catch {
+      setFeedback('Ошибка регистрации. Попробуйте снова.');
     } finally {
       setLoading(false);
     }
   };
 
-  const s = makeStyles(colors);
+  const s = makeStyles(colors, isDark);
 
   return (
     <SafeAreaView style={s.root}>
-      <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
-        <Text style={s.themeIcon}>{isDark ? '☀️' : '🌙'}</Text>
-      </TouchableOpacity>
+      <View style={[s.glow, s.glowRight]} />
+      <View style={[s.glow, s.glowLeft]} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.flex}>
         <ScrollView
           contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={s.header}>
-            <View style={s.logoWrap}>
-              <Text style={s.logoText}>Т</Text>
+          <View style={s.panel}>
+            <View style={s.header}>
+              <View style={s.logoBox}>
+                <Text style={s.logoText}>T</Text>
+              </View>
+              <Text style={s.brand}>Forum.</Text>
+              <Text style={s.kicker}>терминал общения</Text>
             </View>
-            <Text style={s.brand}>Техна.</Text>
-            <Text style={s.tagline}>HR-ассистент вашей компании</Text>
-          </View>
 
-          {/* Card */}
-          <View style={s.card}>
-            {/* Tabs */}
             <View style={s.tabs}>
               <TouchableOpacity
                 style={[s.tab, isLogin && s.tabActive]}
-                onPress={() => setIsLogin(true)}
+                onPress={() => {
+                  setIsLogin(true);
+                  setFeedback('');
+                }}
               >
-                <Text style={[s.tabText, isLogin && s.tabTextActive]}>Вход</Text>
+                <Text style={[s.tabText, isLogin && s.tabTextActive]}>ВХОД</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.tab, !isLogin && s.tabActive]}
-                onPress={() => setIsLogin(false)}
+                onPress={() => {
+                  setIsLogin(false);
+                  setFeedback('');
+                }}
               >
-                <Text style={[s.tabText, !isLogin && s.tabTextActive]}>Регистрация</Text>
+                <Text style={[s.tabText, !isLogin && s.tabTextActive]}>РЕГИСТРАЦИЯ</Text>
               </TouchableOpacity>
             </View>
+
+            {message ? (
+              <View style={[s.banner, isSuccess ? s.bannerSuccess : s.bannerError]}>
+                <Text style={s.bannerText}>{message}</Text>
+              </View>
+            ) : null}
 
             {isLogin ? (
               <View style={s.form}>
@@ -126,112 +144,102 @@ export default function AuthScreen() {
                     placeholder="12345 или user@company.ru"
                     placeholderTextColor={colors.ink3}
                     value={form.login}
-                    onChangeText={(v) => set('login', v)}
+                    onChangeText={(value) => setField('login', value)}
                     autoCapitalize="none"
                     editable={!loading}
                   />
                 </Field>
+
                 <Field label="Пароль" colors={colors}>
                   <TextInput
                     style={s.input}
                     placeholder="Введите пароль"
                     placeholderTextColor={colors.ink3}
                     value={form.password}
-                    onChangeText={(v) => set('password', v)}
+                    onChangeText={(value) => setField('password', value)}
                     secureTextEntry
                     editable={!loading}
                   />
                 </Field>
+
                 <TouchableOpacity
-                  style={[s.btn, loading && s.btnDisabled]}
+                  style={[s.primaryButton, loading && s.buttonDisabled]}
                   onPress={handleLogin}
                   disabled={loading}
                 >
                   {loading ? (
                     <ActivityIndicator color={colors.bg} />
                   ) : (
-                    <Text style={s.btnText}>Войти</Text>
+                    <Text style={s.primaryButtonText}>ВОЙТИ</Text>
                   )}
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={s.form}>
-                <Field label="Табельный номер *" colors={colors}>
+                <Field label="Табельный номер" colors={colors}>
                   <TextInput
                     style={s.input}
                     placeholder="12345"
                     placeholderTextColor={colors.ink3}
                     value={form.employeeId}
-                    onChangeText={(v) => set('employeeId', v)}
+                    onChangeText={(value) => setField('employeeId', value)}
                     editable={!loading}
                   />
                 </Field>
-                <Field label="Email *" colors={colors}>
+
+                <Field label="Email" colors={colors}>
                   <TextInput
                     style={s.input}
                     placeholder="user@company.ru"
                     placeholderTextColor={colors.ink3}
                     value={form.email}
-                    onChangeText={(v) => set('email', v)}
+                    onChangeText={(value) => setField('email', value)}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     editable={!loading}
                   />
                 </Field>
-                <Field label="ФИО *" colors={colors}>
+
+                <Field label="ФИО" colors={colors}>
                   <TextInput
                     style={s.input}
                     placeholder="Иванов Иван Иванович"
                     placeholderTextColor={colors.ink3}
                     value={form.fullName}
-                    onChangeText={(v) => set('fullName', v)}
+                    onChangeText={(value) => setField('fullName', value)}
                     editable={!loading}
                   />
                 </Field>
-                <Field label="Должность" colors={colors}>
-                  <TextInput
-                    style={s.input}
-                    placeholder="Разработчик"
-                    placeholderTextColor={colors.ink3}
-                    value={form.position}
-                    onChangeText={(v) => set('position', v)}
-                    editable={!loading}
-                  />
-                </Field>
-                <Field label="Отдел" colors={colors}>
-                  <TextInput
-                    style={s.input}
-                    placeholder="IT"
-                    placeholderTextColor={colors.ink3}
-                    value={form.department}
-                    onChangeText={(v) => set('department', v)}
-                    editable={!loading}
-                  />
-                </Field>
-                <Field label="Пароль *" colors={colors}>
+
+                <Field label="Пароль" colors={colors}>
                   <TextInput
                     style={s.input}
                     placeholder="Минимум 6 символов"
                     placeholderTextColor={colors.ink3}
                     value={form.password}
-                    onChangeText={(v) => set('password', v)}
+                    onChangeText={(value) => setField('password', value)}
                     secureTextEntry
                     editable={!loading}
                   />
                 </Field>
+
                 <TouchableOpacity
-                  style={[s.btn, loading && s.btnDisabled]}
+                  style={[s.primaryButton, loading && s.buttonDisabled]}
                   onPress={handleRegister}
                   disabled={loading}
                 >
                   {loading ? (
                     <ActivityIndicator color={colors.bg} />
                   ) : (
-                    <Text style={s.btnText}>Зарегистрироваться</Text>
+                    <Text style={s.primaryButtonText}>ЗАРЕГИСТРИРОВАТЬСЯ</Text>
                   )}
                 </TouchableOpacity>
               </View>
             )}
+
+            <View style={s.footer}>
+              <Text style={s.footerText}>Для молодых сотрудников компании</Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -241,8 +249,16 @@ export default function AuthScreen() {
 
 function Field({ label, colors, children }) {
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.ink2, fontFamily: 'Inter_600SemiBold' }}>
+    <View style={{ gap: 8 }}>
+      <Text
+        style={{
+          fontSize: 10,
+          letterSpacing: 1.4,
+          textTransform: 'uppercase',
+          color: colors.ink3,
+          fontFamily: 'JetBrainsMono_500Medium',
+        }}
+      >
         {label}
       </Text>
       {children}
@@ -250,102 +266,127 @@ function Field({ label, colors, children }) {
   );
 }
 
-const makeStyles = (colors) =>
+const makeStyles = (colors, isDark) =>
   StyleSheet.create({
     root: {
       flex: 1,
       backgroundColor: colors.bg,
     },
-    themeBtn: {
-      position: 'absolute',
-      top: Platform.OS === 'ios' ? 56 : 16,
-      right: spacing.lg,
-      zIndex: 10,
-      padding: spacing.sm,
+    flex: {
+      flex: 1,
     },
-    themeIcon: {
-      fontSize: 22,
+    glow: {
+      position: 'absolute',
+      width: 280,
+      height: 280,
+      borderRadius: 999,
+      opacity: isDark ? 0.12 : 0.18,
+    },
+    glowRight: {
+      top: -80,
+      right: -60,
+      backgroundColor: colors.pistachio,
+    },
+    glowLeft: {
+      bottom: -40,
+      left: -80,
+      backgroundColor: colors.moss,
     },
     scroll: {
       flexGrow: 1,
       justifyContent: 'center',
       padding: spacing.xl,
-      paddingTop: spacing.xxxl,
+      paddingVertical: spacing.xxxl,
+    },
+    panel: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.xxxl,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: isDark ? 0.35 : 0.18,
+      shadowRadius: 30,
+      elevation: 6,
     },
     header: {
       alignItems: 'center',
       marginBottom: spacing.xxxl,
     },
-    logoWrap: {
-      width: 64,
-      height: 64,
-      borderRadius: radius.xl,
-      backgroundColor: colors.moss,
+    logoBox: {
+      width: 58,
+      height: 58,
+      borderWidth: 1,
+      borderColor: colors.line,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: spacing.md,
-      shadowColor: colors.moss,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.35,
-      shadowRadius: 12,
-      elevation: 6,
+      backgroundColor: 'transparent',
     },
     logoText: {
-      fontSize: 28,
-      fontWeight: '700',
-      color: colors.pistachio,
-      fontFamily: 'Inter_700Bold',
+      color: colors.moss,
+      fontSize: 26,
+      fontFamily: 'Fraunces_500Medium',
     },
     brand: {
-      fontSize: 30,
-      fontWeight: '700',
       color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 34,
+      fontFamily: 'Fraunces_400Regular',
       marginBottom: 6,
     },
-    tagline: {
-      fontSize: 14,
+    kicker: {
       color: colors.ink3,
-      fontFamily: 'Inter_400Regular',
-    },
-    card: {
-      backgroundColor: colors.paper,
-      borderRadius: radius.lg,
-      padding: spacing.xxl,
-      borderWidth: 1,
-      borderColor: colors.line,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 4,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_400Regular',
+      textAlign: 'center',
     },
     tabs: {
       flexDirection: 'row',
-      gap: spacing.sm,
-      marginBottom: spacing.xxl,
+      gap: 4,
+      backgroundColor: colors.bg2,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: 4,
+      marginBottom: spacing.xl,
     },
     tab: {
       flex: 1,
-      padding: spacing.md,
-      backgroundColor: colors.bg2,
-      borderRadius: radius.md,
+      paddingVertical: 10,
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.line,
     },
     tabActive: {
-      backgroundColor: colors.moss,
-      borderColor: 'transparent',
+      backgroundColor: colors.ink,
     },
     tabText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.ink3,
-      fontFamily: 'Inter_600SemiBold',
+      color: colors.ink2,
+      fontSize: 11,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_500Medium',
     },
     tabTextActive: {
-      color: colors.pistachio,
+      color: colors.bg,
+    },
+    banner: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      borderWidth: 1,
+      marginBottom: spacing.xl,
+    },
+    bannerSuccess: {
+      backgroundColor: colors.pistachioWash,
+      borderColor: colors.pistachio,
+    },
+    bannerError: {
+      backgroundColor: colors.hotWash,
+      borderColor: colors.hot,
+    },
+    bannerText: {
+      color: colors.ink,
+      fontSize: 13,
+      lineHeight: 20,
+      fontFamily: 'Inter_400Regular',
     },
     form: {
       gap: spacing.lg,
@@ -354,29 +395,38 @@ const makeStyles = (colors) =>
       backgroundColor: colors.bg,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.md,
-      padding: spacing.md,
-      fontSize: 15,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      fontSize: 14,
       color: colors.ink,
       fontFamily: 'Inter_400Regular',
     },
-    btn: {
-      backgroundColor: colors.moss,
-      borderRadius: radius.md,
-      padding: spacing.md + 2,
+    primaryButton: {
+      backgroundColor: colors.ink,
+      paddingVertical: 14,
       alignItems: 'center',
       marginTop: spacing.sm,
-      shadowColor: colors.moss,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 12,
-      elevation: 4,
     },
-    btnDisabled: { opacity: 0.6 },
-    btnText: {
-      color: colors.pistachio,
-      fontSize: 15,
-      fontWeight: '700',
-      fontFamily: 'Inter_700Bold',
+    primaryButtonText: {
+      color: colors.bg,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    footer: {
+      marginTop: spacing.xxl,
+      paddingTop: spacing.xxl,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+    },
+    footerText: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
     },
   });

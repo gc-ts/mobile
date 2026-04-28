@@ -1,39 +1,52 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View,
+  Alert,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  Alert,
+  View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import AppTopBar from '../../components/AppTopBar';
+import ScreenBackdrop from '../../components/ScreenBackdrop';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { radius, spacing } from '../../styles/theme';
+import { spacing } from '../../styles/theme';
 
-function getInitials(name) {
-  if (!name) return 'U';
-  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+function formatChatDate(dateStr) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = now - date;
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 60) return `${minutes} мин. назад`;
+  if (hours < 24) return `${hours} ч. назад`;
+  if (days === 0) return 'Сегодня';
+  if (days === 1) return 'Вчера';
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
-function formatDate(iso) {
-  const d = new Date(iso);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  if (isToday) {
-    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  }
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+function buildDraftChat() {
+  return {
+    id: Date.now(),
+    title: 'Новый чат',
+    messages: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export default function ChatListScreen({ navigation }) {
   const { colors } = useTheme();
-  const { employee, logout } = useAuth();
+  const { employee } = useAuth();
   const [chats, setChats] = useState([]);
+  const [searchValue, setSearchValue] = useState('');
 
   const storageKey = `chats_${employee?.employee_id}`;
 
@@ -41,6 +54,14 @@ export default function ChatListScreen({ navigation }) {
     try {
       const raw = await AsyncStorage.getItem(storageKey);
       const list = raw ? JSON.parse(raw) : [];
+
+      if (list.length === 0) {
+        const initialChat = buildDraftChat();
+        await AsyncStorage.setItem(storageKey, JSON.stringify([initialChat]));
+        setChats([initialChat]);
+        return;
+      }
+
       setChats(list.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
     } catch {
       setChats([]);
@@ -54,15 +75,10 @@ export default function ChatListScreen({ navigation }) {
   );
 
   const createChat = async () => {
-    const newChat = {
-      id: Date.now(),
-      title: 'Новый чат',
-      messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const newChat = buildDraftChat();
     const updated = [newChat, ...chats];
     await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
+    setChats(updated);
     navigation.navigate('Chat', { chatId: newChat.id });
   };
 
@@ -73,7 +89,14 @@ export default function ChatListScreen({ navigation }) {
         text: 'Удалить',
         style: 'destructive',
         onPress: async () => {
-          const updated = chats.filter((c) => c.id !== chatId);
+          const updated = chats.filter((chat) => chat.id !== chatId);
+          if (updated.length === 0) {
+            const initialChat = buildDraftChat();
+            setChats([initialChat]);
+            await AsyncStorage.setItem(storageKey, JSON.stringify([initialChat]));
+            return;
+          }
+
           setChats(updated);
           await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
         },
@@ -81,77 +104,86 @@ export default function ChatListScreen({ navigation }) {
     ]);
   };
 
+  const filteredChats = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return chats;
+
+    return chats.filter((chat) => {
+      const lastMessage = chat.messages[chat.messages.length - 1]?.text ?? '';
+      return `${chat.title} ${lastMessage}`.toLowerCase().includes(query);
+    });
+  }, [chats, searchValue]);
+
   const s = makeStyles(colors);
 
   return (
     <SafeAreaView style={s.root}>
-      {/* Header */}
-      <View style={s.header}>
-        <View style={s.headerLeft}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>{getInitials(employee?.full_name)}</Text>
-          </View>
-          <View>
-            <Text style={s.name}>{employee?.full_name || 'Пользователь'}</Text>
-            <Text style={s.position}>{employee?.position || employee?.department || ''}</Text>
-          </View>
-        </View>
-        <TouchableOpacity onPress={logout} style={s.logoutBtn}>
-          <Text style={s.logoutText}>Выйти</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenBackdrop />
+      <AppTopBar
+        searchValue={searchValue}
+        onSearchChange={setSearchValue}
+        searchPlaceholder="Поиск по чатам..."
+      />
 
-      {/* Title */}
-      <View style={s.titleRow}>
-        <Text style={s.title}>Чаты</Text>
-        <TouchableOpacity style={s.newBtn} onPress={createChat}>
-          <Text style={s.newBtnText}>+ Новый</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* List */}
-      {chats.length === 0 ? (
-        <View style={s.empty}>
-          <Text style={s.emptyEmoji}>💬</Text>
-          <Text style={s.emptyTitle}>Нет чатов</Text>
-          <Text style={s.emptySubtitle}>Создайте первый чат с AI-ассистентом</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={createChat}>
-            <Text style={s.emptyBtnText}>Начать чат</Text>
+      <View style={s.panel}>
+        <View style={s.panelHeader}>
+          <View style={s.panelCopy}>
+            <Text style={s.title}>Ваши чаты.</Text>
+            <Text style={s.kicker}>История диалогов с Techna</Text>
+          </View>
+          <TouchableOpacity style={s.primaryBtn} onPress={createChat}>
+            <Text style={s.primaryBtnText}>НОВЫЙ ЧАТ</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+
+        <Text style={s.sectionKicker}>
+          {searchValue.trim() ? `Найдено: ${filteredChats.length}` : `Ваши чаты: ${chats.length}`}
+        </Text>
+
         <FlatList
-          data={chats}
+          data={filteredChats}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
-          renderItem={({ item }) => {
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item, index }) => {
             const lastMsg = item.messages[item.messages.length - 1];
+            const isLead = index === 0;
+
             return (
-              <TouchableOpacity
-                style={s.chatItem}
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  s.chatItem,
+                  isLead && s.chatItemLead,
+                  hovered && s.chatItemHovered,
+                  pressed && s.chatItemPressed,
+                ]}
                 onPress={() => navigation.navigate('Chat', { chatId: item.id })}
                 onLongPress={() => deleteChat(item.id)}
               >
-                <View style={s.chatIcon}>
-                  <Text style={s.chatIconText}>💬</Text>
-                </View>
                 <View style={s.chatBody}>
-                  <View style={s.chatTop}>
-                    <Text style={s.chatTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={s.chatDate}>{formatDate(item.updatedAt)}</Text>
-                  </View>
-                  {lastMsg && (
-                    <Text style={s.chatPreview} numberOfLines={1}>
-                      {lastMsg.sender === 'user' ? 'Вы: ' : ''}
-                      {lastMsg.text}
-                    </Text>
-                  )}
+                  <Text style={s.chatTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={s.chatMeta}>
+                    {formatChatDate(item.updatedAt)} · {item.messages.length} сообщ.
+                  </Text>
+                  <Text style={s.chatPreview} numberOfLines={2}>
+                    {lastMsg
+                      ? `${lastMsg.sender === 'user' ? 'Вы: ' : ''}${lastMsg.text}`
+                      : 'Новый диалог с AI-ассистентом.'}
+                  </Text>
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             );
           }}
+          ListEmptyComponent={
+            <View style={s.emptyState}>
+              <Text style={s.emptyTitle}>Ничего не найдено</Text>
+              <Text style={s.emptyText}>Попробуйте другой запрос или создайте новый чат.</Text>
+            </View>
+          }
         />
-      )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -162,154 +194,112 @@ const makeStyles = (colors) =>
       flex: 1,
       backgroundColor: colors.bg,
     },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    panel: {
+      flex: 1,
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: colors.paper,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.line,
-      paddingTop: Platform.OS === 'android' ? spacing.xxxl : spacing.md,
+      paddingTop: spacing.xl,
     },
-    headerLeft: {
+    panelHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
       gap: spacing.md,
+      marginBottom: spacing.lg,
     },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: radius.full,
-      backgroundColor: colors.moss,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarText: {
-      color: colors.pistachio,
-      fontSize: 15,
-      fontWeight: '700',
-      fontFamily: 'Inter_700Bold',
-    },
-    name: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: colors.ink,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    position: {
-      fontSize: 12,
-      color: colors.ink3,
-      fontFamily: 'Inter_400Regular',
-    },
-    logoutBtn: { padding: spacing.sm },
-    logoutText: {
-      color: colors.moss,
-      fontSize: 14,
-      fontWeight: '600',
-      fontFamily: 'Inter_600SemiBold',
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
+    panelCopy: {
+      flex: 1,
     },
     title: {
-      fontSize: 22,
-      fontWeight: '700',
       color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 32,
+      fontFamily: 'Fraunces_400Regular',
+      marginBottom: 4,
     },
-    newBtn: {
-      backgroundColor: colors.moss,
-      borderRadius: radius.full,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+    kicker: {
+      color: colors.ink2,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: 'Inter_400Regular',
     },
-    newBtnText: {
-      color: colors.pistachio,
-      fontSize: 13,
-      fontWeight: '700',
-      fontFamily: 'Inter_700Bold',
+    primaryBtn: {
+      backgroundColor: colors.pistachio,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+    },
+    primaryBtnText: {
+      color: colors.pistachioInk,
+      fontSize: 10,
+      letterSpacing: 1.1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    sectionKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+      marginBottom: spacing.sm,
+    },
+    list: {
+      paddingBottom: spacing.xxxl,
     },
     chatItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      backgroundColor: colors.paper,
-      borderRadius: radius.md,
-      padding: spacing.md,
-      borderWidth: 1,
+      borderTopWidth: 1,
+      borderLeftWidth: 2,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
       borderColor: colors.line,
+      borderLeftColor: 'transparent',
+      backgroundColor: colors.paper,
+      marginBottom: -1,
     },
-    chatIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: radius.md,
-      backgroundColor: colors.bg2,
-      alignItems: 'center',
-      justifyContent: 'center',
+    chatItemLead: {
+      borderLeftColor: colors.pistachio,
     },
-    chatIconText: { fontSize: 20 },
-    chatBody: { flex: 1 },
-    chatTop: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 2,
+    chatItemHovered: {
+      borderColor: colors.moss,
+      backgroundColor: colors.mossWash,
+    },
+    chatItemPressed: {
+      opacity: 0.9,
+    },
+    chatBody: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      gap: 4,
     },
     chatTitle: {
-      fontSize: 15,
-      fontWeight: '600',
       color: colors.ink,
+      fontSize: 15,
       fontFamily: 'Inter_600SemiBold',
-      flex: 1,
-      marginRight: spacing.sm,
     },
-    chatDate: {
-      fontSize: 12,
+    chatMeta: {
       color: colors.ink3,
-      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
     },
     chatPreview: {
+      color: colors.ink2,
       fontSize: 13,
-      color: colors.ink3,
+      lineHeight: 20,
       fontFamily: 'Inter_400Regular',
     },
-    empty: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: spacing.xxxl,
-      gap: spacing.md,
+    emptyState: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.xl,
+      gap: 6,
     },
-    emptyEmoji: { fontSize: 48 },
     emptyTitle: {
-      fontSize: 20,
-      fontWeight: '700',
       color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 18,
+      fontFamily: 'Fraunces_400Regular',
     },
-    emptySubtitle: {
-      fontSize: 14,
-      color: colors.ink3,
-      textAlign: 'center',
+    emptyText: {
+      color: colors.ink2,
+      fontSize: 13,
+      lineHeight: 20,
       fontFamily: 'Inter_400Regular',
-    },
-    emptyBtn: {
-      backgroundColor: colors.moss,
-      borderRadius: radius.full,
-      paddingHorizontal: spacing.xxl,
-      paddingVertical: spacing.md,
-      marginTop: spacing.md,
-    },
-    emptyBtnText: {
-      color: colors.pistachio,
-      fontSize: 15,
-      fontWeight: '700',
-      fontFamily: 'Inter_700Bold',
     },
   });

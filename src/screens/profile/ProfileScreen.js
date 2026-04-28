@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AppTopBar from '../../components/AppTopBar';
+import ScreenBackdrop from '../../components/ScreenBackdrop';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { employeeAPI } from '../../services/api';
-import { radius, spacing } from '../../styles/theme';
+import { spacing } from '../../styles/theme';
 
 function pick(employee, snakeKey, camelKey) {
   return employee?.[snakeKey] ?? employee?.[camelKey] ?? null;
@@ -38,7 +40,6 @@ function getInitials(fullName) {
 
 function formatDate(value) {
   if (!value) return '—';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
 
@@ -51,7 +52,6 @@ function formatDate(value) {
 
 function formatShortDate(value) {
   if (!value) return '—';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
 
@@ -62,7 +62,7 @@ function formatShortDate(value) {
 }
 
 function getAgeFromDate(value, apiAge) {
-  if (typeof apiAge === 'number') return `${apiAge} лет`;
+  if (typeof apiAge === 'number') return `${apiAge}`;
   if (!value) return '—';
 
   const birthDate = new Date(value);
@@ -74,27 +74,15 @@ function getAgeFromDate(value, apiAge) {
     today.getMonth() > birthDate.getMonth() ||
     (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
 
-  if (!hasBirthdayPassed) {
-    age -= 1;
-  }
-
-  return `${age} лет`;
+  if (!hasBirthdayPassed) age -= 1;
+  return `${age}`;
 }
 
-function FieldCard({ colors, label, value, compact = false }) {
+function DetailRow({ colors, label, value }) {
   return (
-    <View
-      style={[
-        styles.fieldCard,
-        {
-          backgroundColor: colors.paper,
-          borderColor: colors.line,
-          minWidth: compact ? '48%' : '100%',
-        },
-      ]}
-    >
-      <Text style={[styles.fieldLabel, { color: colors.ink3 }]}>{label}</Text>
-      <Text style={[styles.fieldValue, { color: colors.ink }]}>{value || '—'}</Text>
+    <View style={[styles.detailRow, { backgroundColor: colors.bg, borderColor: colors.line }]}>
+      <Text style={[styles.detailLabel, { color: colors.ink3 }]}>{label}</Text>
+      <Text style={[styles.detailValue, { color: colors.ink }]}>{value || '—'}</Text>
     </View>
   );
 }
@@ -165,6 +153,9 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={s.root}>
+      <ScreenBackdrop />
+      <AppTopBar hideProfileChip />
+
       <ScrollView
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
@@ -176,85 +167,58 @@ export default function ProfileScreen() {
           />
         }
       >
-        <View style={s.headerRow}>
-          <View>
-            <Text style={s.pageTitle}>Профиль</Text>
-            <Text style={s.pageSubtitle}>Данные сотрудника и быстрые HR-сводки</Text>
-          </View>
-          <TouchableOpacity style={s.themeButton} onPress={toggleTheme}>
-            <Text style={s.themeButtonText}>{isDark ? 'Светлая' : 'Темная'}</Text>
-          </TouchableOpacity>
+        <View style={s.header}>
+          <Text style={s.title}>Settings.</Text>
+          <Text style={s.kicker}>Профиль сотрудника и настройки приложения</Text>
         </View>
 
-        <View style={s.heroCard}>
-          <View style={s.heroTop}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{getInitials(fullName)}</Text>
-            </View>
-            <View style={s.heroText}>
-              <Text style={s.name}>{fullName}</Text>
-              <Text style={s.roleLine}>
-                {pick(profile, 'position', 'position') || 'Должность не указана'}
-              </Text>
-              <Text style={s.departmentLine}>
-                {pick(profile, 'department', 'department') || 'Отдел не указан'}
-              </Text>
-            </View>
+        <View style={s.profileCard}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{getInitials(fullName)}</Text>
           </View>
 
-          <View style={s.badgesRow}>
-            <View style={s.badge}>
-              <Text style={s.badgeLabel}>ID</Text>
-              <Text style={s.badgeValue}>{employeeId || '—'}</Text>
-            </View>
-            <View style={s.badge}>
-              <Text style={s.badgeLabel}>Роль</Text>
-              <Text style={s.badgeValue}>
-                {pick(profile, 'role', 'role') === 'admin' ? 'Администратор' : 'Сотрудник'}
-              </Text>
-            </View>
-          </View>
+          <Text style={s.name}>{fullName}</Text>
+          <Text style={s.employeeId}>ID: {employeeId || '—'}</Text>
+
+          <Text style={s.position}>{pick(profile, 'position', 'position') || 'Должность не указана'}</Text>
+          <Text style={s.department}>{pick(profile, 'department', 'department') || 'Отдел не указан'}</Text>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Основное</Text>
-          <FieldCard colors={colors} label="Табельный номер" value={employeeId} />
-          <FieldCard colors={colors} label="Email" value={pick(profile, 'email', 'email')} />
-          <FieldCard colors={colors} label="Телефон" value={pick(profile, 'phone', 'phone')} />
-        </View>
-
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Рабочие данные</Text>
-          <View style={s.gridRow}>
-            <FieldCard
-              colors={colors}
-              label="Дата выхода"
-              value={formatDate(pick(profile, 'hire_date', 'hireDate'))}
-              compact
-            />
-            <FieldCard
+          <Text style={s.sectionTitle}>Профиль</Text>
+          <View style={s.detailsCard}>
+            <DetailRow colors={colors} label="Табельный номер" value={employeeId} />
+            <DetailRow colors={colors} label="Email" value={pick(profile, 'email', 'email')} />
+            <DetailRow colors={colors} label="Должность" value={pick(profile, 'position', 'position')} />
+            <DetailRow colors={colors} label="Отдел" value={pick(profile, 'department', 'department')} />
+            <DetailRow colors={colors} label="Телефон" value={pick(profile, 'phone', 'phone')} />
+            <DetailRow
               colors={colors}
               label="Дата рождения"
               value={formatDate(pick(profile, 'birth_date', 'birthDate') ?? birthday?.birthDate)}
-              compact
+            />
+            <DetailRow
+              colors={colors}
+              label="Дата приема на работу"
+              value={formatDate(pick(profile, 'hire_date', 'hireDate'))}
             />
           </View>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>HR-сводка</Text>
+          <Text style={s.sectionTitle}>HR Snapshot</Text>
           <View style={s.metricsRow}>
             <View style={s.metricCard}>
               <Text style={s.metricValue}>
                 {vacation?.remainingDays ?? pick(profile, 'vacation_days', 'vacationDays') ?? '—'}
               </Text>
-              <Text style={s.metricLabel}>Дней отпуска</Text>
+              <Text style={s.metricLabel}>days left</Text>
             </View>
             <View style={s.metricCard}>
               <Text style={s.metricValue}>
                 {formatShortDate(vacation?.nextVacation ?? pick(profile, 'next_vacation', 'nextVacation'))}
               </Text>
-              <Text style={s.metricLabel}>Ближайший отпуск</Text>
+              <Text style={s.metricLabel}>next vacation</Text>
             </View>
             <View style={s.metricCard}>
               <Text style={s.metricValue}>
@@ -263,20 +227,24 @@ export default function ProfileScreen() {
                   birthday?.age
                 )}
               </Text>
-              <Text style={s.metricLabel}>Возраст</Text>
+              <Text style={s.metricLabel}>age</Text>
             </View>
           </View>
         </View>
 
-        <View style={s.actions}>
-          <TouchableOpacity style={s.secondaryButton} onPress={toggleTheme}>
-            <Text style={s.secondaryButtonText}>
-              {isDark ? 'Переключить на светлую тему' : 'Переключить на темную тему'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.primaryButton} onPress={logout}>
-            <Text style={s.primaryButtonText}>Выйти из аккаунта</Text>
-          </TouchableOpacity>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Настройки</Text>
+          <View style={s.actionsCard}>
+            <TouchableOpacity style={s.secondaryBtn} onPress={toggleTheme}>
+              <Text style={s.secondaryBtnText}>
+                {isDark ? 'SWITCH TO LIGHT' : 'SWITCH TO DARK'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={s.primaryBtn} onPress={logout}>
+              <Text style={s.primaryBtnText}>LOGOUT</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -284,22 +252,21 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  fieldCard: {
+  detailRow: {
     borderWidth: 1,
-    borderRadius: radius.md,
     padding: spacing.md,
-    gap: 4,
+    gap: 6,
   },
-  fieldLabel: {
-    fontSize: 11,
+  detailLabel: {
+    fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontFamily: 'Inter_500Medium',
+    letterSpacing: 1,
+    fontFamily: 'JetBrainsMono_500Medium',
   },
-  fieldValue: {
-    fontSize: 15,
-    lineHeight: 21,
-    fontFamily: 'Inter_600SemiBold',
+  detailValue: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Inter_400Regular',
   },
 });
 
@@ -320,119 +287,82 @@ const makeStyles = (colors) =>
       gap: spacing.lg,
       paddingBottom: spacing.xxxl,
     },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      gap: spacing.md,
+    header: {
+      gap: 4,
       paddingTop: spacing.sm,
     },
-    pageTitle: {
-      fontSize: 28,
+    title: {
       color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 34,
+      fontFamily: 'Fraunces_500Medium',
     },
-    pageSubtitle: {
-      marginTop: 4,
-      fontSize: 14,
-      lineHeight: 20,
+    kicker: {
       color: colors.ink3,
-      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_400Regular',
     },
-    themeButton: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.full,
+    profileCard: {
       backgroundColor: colors.paper,
       borderWidth: 1,
       borderColor: colors.line,
-    },
-    themeButtonText: {
-      color: colors.ink2,
-      fontSize: 13,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    heroCard: {
-      backgroundColor: colors.paper,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-      gap: spacing.lg,
-    },
-    heroTop: {
-      flexDirection: 'row',
+      padding: spacing.xl,
       alignItems: 'center',
-      gap: spacing.md,
+      gap: 6,
     },
     avatar: {
-      width: 72,
-      height: 72,
-      borderRadius: radius.full,
+      width: 64,
+      height: 64,
+      borderRadius: 999,
+      backgroundColor: colors.sage,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.moss,
+      marginBottom: spacing.sm,
     },
     avatarText: {
-      color: colors.pistachio,
+      color: colors.paper,
       fontSize: 24,
-      fontFamily: 'Inter_700Bold',
-    },
-    heroText: {
-      flex: 1,
-      gap: 4,
+      fontFamily: 'Fraunces_500Medium',
     },
     name: {
+      color: colors.ink,
       fontSize: 22,
-      lineHeight: 28,
-      color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      textAlign: 'center',
+      fontFamily: 'Fraunces_400Regular',
     },
-    roleLine: {
-      fontSize: 15,
-      color: colors.ink2,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    departmentLine: {
-      fontSize: 13,
+    employeeId: {
       color: colors.ink3,
+      fontSize: 11,
+      letterSpacing: 0.6,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    position: {
+      color: colors.ink,
+      fontSize: 14,
+      textAlign: 'center',
       fontFamily: 'Inter_400Regular',
+      marginTop: spacing.xs,
     },
-    badgesRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.sm,
-    },
-    badge: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.full,
-      backgroundColor: colors.bg2,
-    },
-    badgeLabel: {
-      fontSize: 10,
+    department: {
       color: colors.ink3,
-      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      textAlign: 'center',
+      letterSpacing: 0.8,
       textTransform: 'uppercase',
-      letterSpacing: 0.4,
-    },
-    badgeValue: {
-      fontSize: 13,
-      color: colors.ink,
-      fontFamily: 'Inter_600SemiBold',
-      marginTop: 2,
+      fontFamily: 'JetBrainsMono_400Regular',
     },
     section: {
       gap: spacing.sm,
     },
     sectionTitle: {
-      fontSize: 18,
-      color: colors.ink,
-      fontFamily: 'Inter_700Bold',
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
-    gridRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+    detailsCard: {
       gap: spacing.sm,
     },
     metricsRow: {
@@ -446,47 +376,47 @@ const makeStyles = (colors) =>
       backgroundColor: colors.paper,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.md,
       padding: spacing.md,
-      gap: 6,
+      gap: 4,
     },
     metricValue: {
-      fontSize: 20,
-      color: colors.moss,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 28,
+      color: colors.ink,
+      fontFamily: 'Fraunces_500Medium',
     },
     metricLabel: {
-      fontSize: 12,
-      lineHeight: 18,
+      fontSize: 11,
+      lineHeight: 16,
       color: colors.ink3,
-      fontFamily: 'Inter_400Regular',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_400Regular',
     },
-    actions: {
+    actionsCard: {
       gap: spacing.sm,
-      marginTop: spacing.xs,
     },
-    primaryButton: {
-      backgroundColor: colors.moss,
-      borderRadius: radius.md,
-      paddingVertical: spacing.md,
+    primaryBtn: {
+      backgroundColor: colors.ink,
+      paddingVertical: 14,
       alignItems: 'center',
     },
-    primaryButtonText: {
-      color: colors.pistachio,
-      fontSize: 15,
-      fontFamily: 'Inter_700Bold',
+    primaryBtnText: {
+      color: colors.bg,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
-    secondaryButton: {
-      backgroundColor: colors.paper,
+    secondaryBtn: {
+      backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.md,
-      paddingVertical: spacing.md,
+      paddingVertical: 14,
       alignItems: 'center',
     },
-    secondaryButtonText: {
-      color: colors.ink,
-      fontSize: 15,
-      fontFamily: 'Inter_600SemiBold',
+    secondaryBtnText: {
+      color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
   });

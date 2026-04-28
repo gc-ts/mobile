@@ -3,26 +3,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightColors, darkColors } from '../styles/theme';
 
 const ThemeContext = createContext(null);
+const THEME_STORAGE_KEY = 'forum.theme';
 
 export function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem('theme').then((val) => {
-      if (val === 'dark') setIsDark(true);
-    });
+    (async () => {
+      const storedTheme =
+        (await AsyncStorage.getItem(THEME_STORAGE_KEY)) ?? (await AsyncStorage.getItem('theme'));
+      if (storedTheme === 'dark') setIsDark(true);
+    })();
   }, []);
 
   const toggleTheme = async () => {
     const next = !isDark;
     setIsDark(next);
-    await AsyncStorage.setItem('theme', next ? 'dark' : 'light');
+    const nextTheme = next ? 'dark' : 'light';
+    await AsyncStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    await AsyncStorage.setItem('theme', nextTheme);
   };
 
   const colors = isDark ? darkColors : lightColors;
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme, colors }}>
+    <ThemeContext.Provider value={{ isDark, theme: isDark ? 'dark' : 'light', toggleTheme, colors }}>
       {children}
     </ThemeContext.Provider>
   );

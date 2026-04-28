@@ -1,87 +1,86 @@
 export const lightColors = {
-  // Backgrounds
   bg: '#EFEBDD',
   bg2: '#E5E0CE',
   paper: '#F6F3E8',
-
-  // Text
   ink: '#14241B',
   ink2: '#3B4C42',
   ink3: '#6E7A6E',
-
-  // Borders
   line: '#C9C2A8',
-
-  // Accent
+  line2: '#D8D2BB',
   moss: '#2F4A39',
   moss2: '#46624F',
   sage: '#8FB996',
   lichen: '#B7CFAF',
   pistachio: '#C9E265',
+  pistachioInk: '#1B2A0E',
   hot: '#E76A3A',
-
-  // Chat bubbles
-  botBubbleBg: '#E8EDE4',
+  overlay: 'rgba(20, 36, 27, 0.5)',
+  shadow: 'rgba(20, 36, 27, 0.18)',
+  accentBg: 'rgba(201, 226, 101, 0.16)',
+  accentBorder: 'rgba(47, 74, 57, 0.18)',
+  mossWash: 'rgba(47, 74, 57, 0.08)',
+  pistachioWash: 'rgba(201, 226, 101, 0.12)',
+  hotWash: 'rgba(231, 106, 58, 0.12)',
+  botBubbleBg: '#F6F3E8',
   botBubbleBorder: '#C9C2A8',
   userBubbleBg: '#2F4A39',
   userBubbleText: '#F6F3E8',
-
-  // Tab bar
   tabBarBg: '#F6F3E8',
   tabBarBorder: '#C9C2A8',
-  tabActive: '#2F4A39',
+  tabActive: '#14241B',
   tabInactive: '#6E7A6E',
 };
 
 export const darkColors = {
-  // Backgrounds
   bg: '#0F1A14',
-  bg2: '#162010',
-  paper: '#1A2618',
-
-  // Text
+  bg2: '#15241C',
+  paper: '#18261F',
   ink: '#ECE7D5',
-  ink2: '#B8B0A0',
-  ink3: '#7A7268',
-
-  // Borders
-  line: '#2A3828',
-
-  // Accent
-  moss: '#6BAA7A',
-  moss2: '#8FBF9E',
-  sage: '#5A8A65',
-  lichen: '#3D6B48',
-  pistachio: '#C9E265',
-  hot: '#E76A3A',
-
-  // Chat bubbles
-  botBubbleBg: '#1E2D22',
-  botBubbleBorder: '#2A3828',
-  userBubbleBg: '#6BAA7A',
-  userBubbleText: '#0F1A14',
-
-  // Tab bar
-  tabBarBg: '#1A2618',
-  tabBarBorder: '#2A3828',
-  tabActive: '#C9E265',
-  tabInactive: '#7A7268',
+  ink2: '#C7CDB9',
+  ink3: '#8A9489',
+  line: '#2A3A30',
+  line2: '#324337',
+  moss: '#B7CFAF',
+  moss2: '#8FB996',
+  sage: '#6F9E78',
+  lichen: '#2F4A39',
+  pistachio: '#D4F261',
+  pistachioInk: '#0F1A05',
+  hot: '#FF8A5C',
+  overlay: 'rgba(0, 0, 0, 0.56)',
+  shadow: 'rgba(0, 0, 0, 0.45)',
+  accentBg: 'rgba(212, 242, 97, 0.14)',
+  accentBorder: 'rgba(183, 207, 175, 0.22)',
+  mossWash: 'rgba(183, 207, 175, 0.08)',
+  pistachioWash: 'rgba(212, 242, 97, 0.10)',
+  hotWash: 'rgba(255, 138, 92, 0.12)',
+  botBubbleBg: '#18261F',
+  botBubbleBorder: '#2A3A30',
+  userBubbleBg: '#B7CFAF',
+  userBubbleText: '#0F1A05',
+  tabBarBg: '#18261F',
+  tabBarBorder: '#2A3A30',
+  tabActive: '#D4F261',
+  tabInactive: '#8A9489',
 };
 
 export const getTheme = (isDark) => (isDark ? darkColors : lightColors);
 
 export const typography = {
-  display: { fontFamily: 'Inter_700Bold', fontWeight: '700' },
+  display: { fontFamily: 'Fraunces_500Medium', fontWeight: '500' },
+  title: { fontFamily: 'Fraunces_400Regular', fontWeight: '400' },
   heading: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   body: { fontFamily: 'Inter_400Regular', fontWeight: '400' },
-  label: { fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  label: { fontFamily: 'JetBrainsMono_500Medium', fontWeight: '500' },
+  mono: { fontFamily: 'JetBrainsMono_400Regular', fontWeight: '400' },
+  monoStrong: { fontFamily: 'JetBrainsMono_600SemiBold', fontWeight: '600' },
 };
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 2,
+  md: 0,
+  lg: 0,
+  xl: 0,
   full: 9999,
 };
 

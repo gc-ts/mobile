@@ -1,14 +1,132 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import EventSource from 'react-native-sse';
 
-const API_URL = 'http://35.208.248.206:3000/api';
+const DEFAULT_API_URL = 'http://35.209.74.112:3000/api';
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
+
+function handleSSEPayload(payload, onChunk, onDone) {
+  const dataLines = payload
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart());
+
+  if (dataLines.length === 0) return false;
+
+  const raw = dataLines.join('\n').trim();
+  if (!raw) return false;
+
+  if (raw === '[DONE]') {
+    onDone?.();
+    return true;
+  }
+
+  try {
+    const data = JSON.parse(raw);
+    if (data.type === 'done') {
+      onDone?.();
+      return true;
+    }
+
+    onChunk?.(data);
+  } catch {
+    // ignore malformed events
+  }
+
+  return false;
+}
+
+function flushSSEBuffer(buffer, onChunk, onDone) {
+  let rest = buffer;
+  let finished = false;
+
+  while (rest.includes('\n\n')) {
+    const separatorIndex = rest.indexOf('\n\n');
+    const payload = rest.slice(0, separatorIndex);
+    rest = rest.slice(separatorIndex + 2);
+
+    if (handleSSEPayload(payload, onChunk, onDone)) {
+      finished = true;
+      break;
+    }
+  }
+
+  return { buffer: rest, finished };
+}
+
+async function createWebStream(message, employeeId, onChunk, onDone, onError) {
+  const token = await getToken();
+  const controller = new AbortController();
+  let closed = false;
+
+  const close = () => {
+    closed = true;
+    controller.abort();
+  };
+
+  (async () => {
+    try {
+      const response = await fetch(`${API_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message, employeeId }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Streaming request failed with status ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Streaming response body is unavailable');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finished = false;
+
+      while (!closed) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = flushSSEBuffer(buffer, onChunk, onDone);
+        buffer = parsed.buffer;
+
+        if (parsed.finished) {
+          finished = true;
+          break;
+        }
+      }
+
+      buffer += decoder.decode();
+
+      if (!finished && buffer.trim()) {
+        finished = handleSSEPayload(buffer, onChunk, onDone);
+      }
+
+      if (!finished && !closed) {
+        onDone?.();
+      }
+    } catch (error) {
+      if (closed || error.name === 'AbortError') return;
+      onError?.(error);
+    }
+  })();
+
+  return close;
+}
 
 api.interceptors.request.use(async (config) => {
   const token = await getToken();
@@ -33,8 +151,11 @@ export const chatAPI = {
   sendMessage: (message, employeeId) =>
     api.post('/chat/message', { message, employeeId }).then((r) => r.data),
 
-  // SSE streaming — calls onChunk({ type, delta?, source? }) per event, onDone() on finish
   sendMessageStream: async (message, employeeId, onChunk, onDone, onError) => {
+    if (Platform.OS === 'web') {
+      return createWebStream(message, employeeId, onChunk, onDone, onError);
+    }
+
     const token = await getToken();
     const url = `${API_URL}/chat/stream`;
 
@@ -54,7 +175,7 @@ export const chatAPI = {
           es.close();
           onDone?.();
         } else {
-          onChunk(data);
+          onChunk?.(data);
         }
       } catch {
         // ignore malformed events

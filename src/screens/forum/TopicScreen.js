@@ -1,31 +1,73 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
+  SafeAreaView,
+  ScrollView,
+  Share,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
+  View,
 } from 'react-native';
+import AppTopBar from '../../components/AppTopBar';
+import ScreenBackdrop from '../../components/ScreenBackdrop';
+import ContextAICard from '../../components/ContextAICard';
 import MarkdownContent from '../../components/MarkdownContent';
 import { useTheme } from '../../contexts/ThemeContext';
-import { topics } from '../../data/forumData';
-import { radius, spacing } from '../../styles/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { categories, topics } from '../../data/forumData';
+import { spacing } from '../../styles/theme';
 
-function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('ru-RU', {
+const FORUM_RULES = [
+  'Будьте вежливы и уважительны.',
+  'Не публикуйте личную информацию.',
+  'Перед новой темой проверьте похожие обсуждения.',
+  'Помогайте новичкам и уточняйте контекст.',
+];
+
+function formatDate(dateValue) {
+  const date = new Date(dateValue);
+  const now = new Date();
+  const diff = now - date;
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 60) return `${minutes} мин. назад`;
+  if (hours < 24) return `${hours} ч. назад`;
+  if (days === 0) return 'Сегодня';
+  if (days === 1) return 'Вчера';
+  if (days < 7) return `${days} дн. назад`;
+
+  return date.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
 }
 
+function getInitials(fullName) {
+  return fullName
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 export default function TopicScreen({ navigation, route }) {
   const { colors } = useTheme();
+  const { employee } = useAuth();
   const { topicId } = route.params;
   const topic = topics.find((item) => item.id === topicId);
   const [liked, setLiked] = useState(false);
+
+  const relatedTopics = useMemo(
+    () =>
+      topics
+        .filter((item) => item.id !== topicId && item.categoryId === topic?.categoryId)
+        .slice(0, 3),
+    [topic, topicId]
+  );
 
   if (!topic) {
     return (
@@ -35,66 +77,144 @@ export default function TopicScreen({ navigation, route }) {
     );
   }
 
+  const category = categories.find((item) => item.id === topic.categoryId);
+  const currentLikes = topic.likesCount + (liked ? 1 : 0);
   const s = makeStyles(colors);
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `${topic.title}\n\n${topic.content}`,
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <SafeAreaView style={s.root}>
+      <ScreenBackdrop />
+      <AppTopBar />
+
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backIcon}>←</Text>
+          <Text style={s.backBtnText}>← НАЗАД</Text>
         </TouchableOpacity>
-        <Text style={s.headerTitle} numberOfLines={1}>
-          {topic.categoryLabel}
-        </Text>
-        <View style={{ width: 40 }} />
+
+        <View style={s.headerText}>
+          <Text style={s.headerKicker}>{topic.categoryLabel}</Text>
+          <Text style={s.headerTitle}>{topic.title}</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        <View style={s.heroCard}>
-          <View style={s.meta}>
-            {topic.pinned && (
-              <View style={s.pinnedBadge}>
-                <Text style={s.pinnedText}>📌 Закреплено</Text>
-              </View>
-            )}
-            <View style={s.catTag}>
-              <Text style={s.catTagText}>{topic.categoryLabel}</Text>
-            </View>
+        <View style={s.authorCard}>
+          <View style={s.authorAvatarSquare}>
+            <Text style={s.authorAvatarSquareText}>{getInitials(topic.author.fullName)}</Text>
           </View>
 
-          <Text style={s.title}>{topic.title}</Text>
-
-          <View style={s.authorRow}>
-            <View style={s.authorAvatar}>
-              <Text style={s.authorInitials}>{topic.authorInitials}</Text>
-            </View>
-            <View style={s.authorMeta}>
-              <Text style={s.authorName}>{topic.author}</Text>
-              <Text style={s.topicDate}>{formatDate(topic.date)}</Text>
-            </View>
-          </View>
-
-          <View style={s.statsRow}>
-            <View style={s.statPill}>
-              <Text style={s.statText}>❤ {topic.likes + (liked ? 1 : 0)}</Text>
-            </View>
-            <View style={s.statPill}>
-              <Text style={s.statText}>💬 {topic.comments}</Text>
-            </View>
+          <View style={s.authorCopy}>
+            <Text style={s.authorName}>{topic.author.fullName}</Text>
+            <Text style={s.authorRole}>{topic.author.position}</Text>
+            <Text style={s.authorDate}>Создано {formatDate(topic.createdAt)}</Text>
           </View>
         </View>
 
-        <View style={s.bodyCard}>
+        <View style={s.topicCard}>
+          <View style={s.badgesRow}>
+            <Text style={s.categoryBadge}>
+              {category?.emoji || '•'} {topic.categoryLabel}
+            </Text>
+            {topic.isPinned ? <Text style={s.pinBadge}>PINNED</Text> : null}
+          </View>
+
+          <View style={s.topicMeta}>
+            <Text style={s.metaText}>👁 {topic.viewsCount}</Text>
+            <Text style={s.metaText}>💬 {topic.repliesCount}</Text>
+            <Text style={s.metaText}>★ {currentLikes}</Text>
+          </View>
+        </View>
+
+        <View style={s.topicBody}>
           <MarkdownContent content={topic.content} colors={colors} />
         </View>
 
-        <View style={s.footer}>
-          <TouchableOpacity style={[s.likeBtn, liked && s.likeBtnActive]} onPress={() => setLiked(!liked)}>
-            <Text style={s.likeBtnText}>
-              {liked ? '❤️' : '🤍'} {liked ? 'Снять реакцию' : 'Поддержать тему'}
+        <View style={s.actionsRow}>
+          <TouchableOpacity style={[s.actionBtn, liked && s.actionBtnActive]} onPress={() => setLiked(!liked)}>
+            <Text style={[s.actionBtnText, liked && s.actionBtnTextActive]}>
+              {liked ? 'НРАВИТСЯ' : 'ОЦЕНИТЬ'} ({currentLikes})
             </Text>
           </TouchableOpacity>
-          <Text style={s.commentsCount}>💬 {topic.comments} комментариев</Text>
+
+          <TouchableOpacity style={s.actionBtn} onPress={handleShare}>
+            <Text style={s.actionBtnText}>ПОДЕЛИТЬСЯ</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.contextCard}>
+          <Text style={s.contextKicker}>Контекст темы</Text>
+          <View style={s.contextGrid}>
+            <View style={s.contextCell}>
+              <Text style={s.contextLabel}>Категория</Text>
+              <Text style={s.contextValue}>{topic.categoryLabel}</Text>
+            </View>
+            <View style={s.contextCell}>
+              <Text style={s.contextLabel}>Автор</Text>
+              <Text style={s.contextValue}>{topic.author.fullName}</Text>
+            </View>
+            <View style={s.contextCell}>
+              <Text style={s.contextLabel}>Ответов</Text>
+              <Text style={s.contextValue}>{topic.repliesCount}</Text>
+            </View>
+            <View style={s.contextCell}>
+              <Text style={s.contextLabel}>Просмотров</Text>
+              <Text style={s.contextValue}>{topic.viewsCount}</Text>
+            </View>
+          </View>
+        </View>
+
+        <ContextAICard
+          colors={colors}
+          employeeId={employee?.employee_id}
+          title="Спросить AI по теме"
+          subtitle="В запрос автоматически уходит название темы, текст сообщения, автор, категория и текущие метрики обсуждения."
+          placeholder="Что хотите уточнить по этой теме?"
+          buttonLabel="ASK AI"
+          buildPrompt={(question) =>
+            `Тема форума: "${topic.title}"\n\nКатегория: ${topic.categoryLabel}\nАвтор: ${topic.author.fullName}, ${topic.author.position}\nСтатистика: ${topic.viewsCount} просмотров, ${topic.repliesCount} ответов, ${currentLikes} лайков\n\nСодержимое темы:\n${topic.content}\n\nВопрос пользователя: ${question}`
+          }
+        />
+
+        {relatedTopics.length > 0 ? (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Похожие темы</Text>
+            <View style={s.railCard}>
+              {relatedTopics.map((relatedTopic, index) => (
+                <TouchableOpacity
+                  key={relatedTopic.id}
+                  style={[s.relatedItem, index < relatedTopics.length - 1 && s.relatedItemBorder]}
+                  onPress={() => navigation.replace('Topic', { topicId: relatedTopic.id })}
+                >
+                  <Text style={s.relatedTitle}>{relatedTopic.title}</Text>
+                  <Text style={s.relatedMeta}>
+                    💬 {relatedTopic.repliesCount} · ★ {relatedTopic.likesCount}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Правила форума</Text>
+          <View style={s.railCard}>
+            {FORUM_RULES.map((rule, index) => (
+              <View key={rule} style={[s.ruleItem, index < FORUM_RULES.length - 1 && s.relatedItemBorder]}>
+                <Text style={s.ruleBullet}>•</Text>
+                <Text style={s.ruleText}>{rule}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -103,165 +223,256 @@ export default function TopicScreen({ navigation, route }) {
 
 const makeStyles = (colors) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bg },
+    root: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
       backgroundColor: colors.paper,
       borderBottomWidth: 1,
       borderBottomColor: colors.line,
-      paddingTop: Platform.OS === 'android' ? spacing.xxxl : spacing.sm,
+      gap: spacing.md,
     },
     backBtn: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignSelf: 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: 'transparent',
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
-    backIcon: {
-      fontSize: 24,
-      color: colors.moss,
-      fontWeight: '600',
+    backBtnText: {
+      color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    headerText: {
+      gap: 4,
+    },
+    headerKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
     },
     headerTitle: {
-      flex: 1,
-      textAlign: 'center',
-      fontSize: 15,
-      fontWeight: '600',
       color: colors.ink,
-      fontFamily: 'Inter_600SemiBold',
+      fontSize: 24,
+      lineHeight: 30,
+      fontFamily: 'Fraunces_400Regular',
     },
     content: {
-      padding: spacing.lg,
-      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xl,
       paddingBottom: spacing.xxxl,
+      gap: spacing.lg,
     },
-    heroCard: {
+    authorCard: {
       backgroundColor: colors.paper,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.lg,
       padding: spacing.lg,
+      flexDirection: 'row',
       gap: spacing.md,
-    },
-    meta: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      flexWrap: 'wrap',
-    },
-    pinnedBadge: {
-      backgroundColor: colors.bg2,
-      borderRadius: radius.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-    },
-    pinnedText: {
-      fontSize: 12,
-      color: colors.ink3,
-      fontFamily: 'Inter_500Medium',
-    },
-    catTag: {
-      backgroundColor: colors.moss + '22',
-      borderRadius: radius.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-    },
-    catTagText: {
-      fontSize: 12,
-      color: colors.moss,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    title: {
-      fontSize: 22,
-      fontWeight: '700',
-      color: colors.ink,
-      fontFamily: 'Inter_700Bold',
-      lineHeight: 30,
-    },
-    authorRow: {
-      flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
     },
-    authorAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.full,
+    authorAvatarSquare: {
+      width: 48,
+      height: 48,
       backgroundColor: colors.moss,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    authorInitials: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.pistachio,
-      fontFamily: 'Inter_700Bold',
+    authorAvatarSquareText: {
+      color: colors.paper,
+      fontSize: 16,
+      fontFamily: 'Fraunces_500Medium',
     },
-    authorMeta: {
+    authorCopy: {
       flex: 1,
+      gap: 2,
     },
     authorName: {
-      fontSize: 14,
-      fontWeight: '600',
       color: colors.ink,
+      fontSize: 14,
       fontFamily: 'Inter_600SemiBold',
     },
-    topicDate: {
-      fontSize: 12,
+    authorRole: {
       color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    authorDate: {
+      color: colors.ink2,
+      fontSize: 12,
+      lineHeight: 18,
       fontFamily: 'Inter_400Regular',
     },
-    statsRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      flexWrap: 'wrap',
-    },
-    statPill: {
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 6,
-      borderRadius: radius.full,
-      backgroundColor: colors.bg2,
-    },
-    statText: {
-      fontSize: 12,
-      color: colors.ink2,
-      fontFamily: 'Inter_500Medium',
-    },
-    bodyCard: {
+    topicCard: {
       backgroundColor: colors.paper,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-    },
-    footer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      padding: spacing.xl,
       gap: spacing.md,
-      marginTop: spacing.xs,
     },
-    likeBtn: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      backgroundColor: colors.bg2,
-      borderRadius: radius.full,
+    badgesRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    categoryBadge: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    pinBadge: {
+      color: colors.hot,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    topicMeta: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.md,
+    },
+    metaText: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    topicBody: {
+      backgroundColor: colors.paper,
       borderWidth: 1,
       borderColor: colors.line,
+      padding: spacing.xl,
     },
-    likeBtnActive: {
-      backgroundColor: colors.moss + '22',
-      borderColor: colors.moss,
+    actionsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
     },
-    likeBtnText: {
-      fontSize: 14,
-      fontFamily: 'Inter_500Medium',
+    actionBtn: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: 'transparent',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    actionBtnActive: {
+      borderColor: colors.hot,
+      backgroundColor: colors.hotWash,
+    },
+    actionBtnText: {
       color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
-    commentsCount: {
-      fontSize: 14,
+    actionBtnTextActive: {
+      color: colors.hot,
+    },
+    contextCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    contextKicker: {
       color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    contextGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    contextCell: {
+      flexBasis: '48%',
+      flexGrow: 1,
+      backgroundColor: colors.bg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.md,
+      gap: 4,
+    },
+    contextLabel: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    contextValue: {
+      color: colors.ink,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    section: {
+      gap: spacing.sm,
+    },
+    sectionTitle: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    railCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: spacing.lg,
+    },
+    relatedItem: {
+      paddingVertical: spacing.md,
+      gap: 4,
+    },
+    relatedItemBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.line,
+      borderStyle: 'dashed',
+    },
+    relatedTitle: {
+      color: colors.ink,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    relatedMeta: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    ruleItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+    },
+    ruleBullet: {
+      color: colors.moss,
+      fontSize: 16,
+      lineHeight: 20,
+      fontFamily: 'Inter_700Bold',
+    },
+    ruleText: {
+      flex: 1,
+      color: colors.ink2,
+      fontSize: 13,
+      lineHeight: 20,
       fontFamily: 'Inter_400Regular',
     },
   });

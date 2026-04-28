@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { radius, spacing } from '../styles/theme';
+import { spacing } from '../styles/theme';
 
 function renderInline(text, style, strongStyle) {
   const parts = String(text ?? '').split(/\*\*(.*?)\*\*/g);
@@ -92,7 +92,7 @@ export default function MarkdownContent({ content, colors }) {
 
         if (line.startsWith('### ')) {
           return (
-            <Text key={index} style={[styles.h3, { color: colors.ink }]}>
+            <Text key={index} style={[styles.h3, { color: colors.ink3 }]}>
               {line.slice(4)}
             </Text>
           );
@@ -143,9 +143,7 @@ export default function MarkdownContent({ content, colors }) {
 
           return (
             <View key={index} style={styles.listRow}>
-              <Text style={[styles.bulletNumber, { color: colors.moss }]}>
-                {match?.[1]}.
-              </Text>
+              <Text style={[styles.bulletNumber, { color: colors.moss }]}>{match?.[1]}.</Text>
               <View style={styles.listContent}>
                 {renderInline(
                   match?.[2] ?? '',
@@ -180,31 +178,33 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   h1: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: 'Fraunces_500Medium',
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
   h2: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: 'Fraunces_400Regular',
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
     paddingBottom: spacing.xs,
     borderBottomWidth: 1,
   },
   h3: {
-    fontSize: 17,
-    lineHeight: 23,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: 'JetBrainsMono_600SemiBold',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
   body: {
     fontSize: 15,
-    lineHeight: 23,
+    lineHeight: 24,
     fontFamily: 'Inter_400Regular',
   },
   strong: {
@@ -212,7 +212,6 @@ const styles = StyleSheet.create({
   },
   blockquote: {
     borderLeftWidth: 3,
-    borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     marginVertical: spacing.xs,
@@ -239,14 +238,13 @@ const styles = StyleSheet.create({
   },
   bulletNumber: {
     minWidth: 24,
-    fontSize: 14,
+    fontSize: 12,
     lineHeight: 23,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'JetBrainsMono_600SemiBold',
   },
   tableRow: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderRadius: radius.sm,
     overflow: 'hidden',
     marginVertical: 2,
   },
@@ -257,7 +255,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     fontSize: 13,
     lineHeight: 19,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'JetBrainsMono_500Medium',
   },
   spacer: {
     height: 6,
