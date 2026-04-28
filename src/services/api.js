@@ -1,215 +1,143 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import EventSource from 'react-native-sse';
 
-// Backend API URL
 const API_URL = 'http://35.208.248.206:3000/api';
-
-// Для локальной разработки:
-// Android эмулятор: 'http://10.0.2.2:3000/api'
-// iOS симулятор: 'http://localhost:3000/api'
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Interceptor для добавления токена
-api.interceptors.request.use(
-  async (config) => {
-    const token = await getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+api.interceptors.request.use(async (config) => {
+  const token = await getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Auth API
+// Auth
 export const authAPI = {
-  login: async (login, password) => {
-    const response = await api.post('/auth/login', { login, password });
-    return response.data;
-  },
+  login: (login, password) =>
+    api.post('/auth/login', { login, password }).then((r) => r.data),
 
-  register: async (employeeData) => {
-    const response = await api.post('/auth/register', employeeData);
-    return response.data;
-  },
+  register: (data) =>
+    api.post('/auth/register', data).then((r) => r.data),
 
-  verify: async (token) => {
-    const response = await api.post('/auth/verify', {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data;
-  },
+  verify: (token) =>
+    api.post('/auth/verify', {}, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data),
 };
 
-// Chat API
+// Chat
 export const chatAPI = {
-  sendMessage: async (message, employeeId) => {
-    const response = await api.post('/chat/message', {
-      message,
-      employeeId,
+  sendMessage: (message, employeeId) =>
+    api.post('/chat/message', { message, employeeId }).then((r) => r.data),
+
+  // SSE streaming — calls onChunk({ type, delta?, source? }) per event, onDone() on finish
+  sendMessageStream: async (message, employeeId, onChunk, onDone, onError) => {
+    const token = await getToken();
+    const url = `${API_URL}/chat/stream`;
+
+    const es = new EventSource(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, employeeId }),
     });
-    return response.data;
+
+    es.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'done') {
+          es.close();
+          onDone?.();
+        } else {
+          onChunk(data);
+        }
+      } catch {
+        // ignore malformed events
+      }
+    });
+
+    es.addEventListener('error', (err) => {
+      es.close();
+      onError?.(err);
+    });
+
+    return () => es.close();
   },
 
-  getHistory: async (employeeId) => {
-    const response = await api.get(`/chat/history/${employeeId}`);
-    return response.data;
-  },
+  getHistory: (employeeId) =>
+    api.get(`/chat/history/${employeeId}`).then((r) => r.data),
 };
 
-// Employee API
+// Employee
 export const employeeAPI = {
-  getEmployee: async (employeeId) => {
-    const response = await api.get(`/employee/${employeeId}`);
-    return response.data;
-  },
+  getEmployee: (employeeId) =>
+    api.get(`/employee/${employeeId}`).then((r) => r.data),
 
-  getVacation: async (employeeId) => {
-    const response = await api.get(`/employee/${employeeId}/vacation`);
-    return response.data;
-  },
+  getVacation: (employeeId) =>
+    api.get(`/employee/${employeeId}/vacation`).then((r) => r.data),
 
-  getBirthday: async (employeeId) => {
-    const response = await api.get(`/employee/${employeeId}/birthday`);
-    return response.data;
-  },
+  getBirthday: (employeeId) =>
+    api.get(`/employee/${employeeId}/birthday`).then((r) => r.data),
 
-  auth: async (employeeId, email) => {
-    const response = await api.post('/employee/auth', { employeeId, email });
-    return response.data;
-  },
+  auth: (employeeId, email) =>
+    api.post('/employee/auth', { employeeId, email }).then((r) => r.data),
 
-  searchByName: async (name) => {
-    const response = await api.get(`/employee/search/by-name?name=${encodeURIComponent(name)}`);
-    return response.data;
-  },
+  searchByName: (name) =>
+    api.get(`/employee/search/by-name?name=${encodeURIComponent(name)}`).then((r) => r.data),
 };
 
-// Documents API
+// Documents
 export const documentsAPI = {
-  getDocuments: async (category = null, type = null) => {
+  getDocuments: (category = null, type = null) => {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     if (type) params.append('type', type);
-
-    const url = params.toString() ? `/documents?${params.toString()}` : '/documents';
-    const response = await api.get(url);
-    return response.data;
+    const q = params.toString();
+    return api.get(q ? `/documents?${q}` : '/documents').then((r) => r.data);
   },
 
-  getDocument: async (documentId) => {
-    const response = await api.get(`/documents/${documentId}`);
-    return response.data;
+  getDocument: (documentId) =>
+    api.get(`/documents/${documentId}`).then((r) => r.data),
+
+  uploadDocument: (file, title, category, type) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('title', title);
+    form.append('category', category);
+    form.append('type', type);
+    return api.post('/documents/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
   },
 
-  uploadDocument: async (file, title, category, type) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title);
-    formData.append('category', category);
-    formData.append('type', type);
+  deleteDocument: (documentId) =>
+    api.delete(`/documents/${documentId}`).then((r) => r.data),
 
-    const response = await api.post('/documents/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-
-  deleteDocument: async (documentId) => {
-    const response = await api.delete(`/documents/${documentId}`);
-    return response.data;
-  },
-
-  getCategories: async () => {
-    const response = await api.get('/documents/meta/categories');
-    return response.data;
-  },
+  getCategories: () =>
+    api.get('/documents/meta/categories').then((r) => r.data),
 };
 
-// Knowledge Base API
+// Knowledge Base
 export const knowledgeAPI = {
-  getAll: async () => {
-    const response = await api.get('/knowledge');
-    return response.data;
-  },
-
-  search: async (query) => {
-    const response = await api.post('/knowledge/search', { query });
-    return response.data;
-  },
-
-  reindex: async () => {
-    const response = await api.post('/knowledge/reindex');
-    return response.data;
-  },
-
-  getIndexStatus: async () => {
-    const response = await api.get('/knowledge/index');
-    return response.data;
-  },
+  getAll: () => api.get('/knowledge').then((r) => r.data),
+  search: (query) => api.post('/knowledge/search', { query }).then((r) => r.data),
+  reindex: () => api.post('/knowledge/reindex').then((r) => r.data),
+  getIndexStatus: () => api.get('/knowledge/index').then((r) => r.data),
 };
 
-// Token storage helpers with AsyncStorage
-export const setToken = async (token) => {
-  try {
-    await AsyncStorage.setItem('token', token);
-  } catch (error) {
-    console.error('Error saving token:', error);
-  }
-};
+// Token & employee helpers
+export const setToken = (token) => AsyncStorage.setItem('token', token);
+export const getToken = () => AsyncStorage.getItem('token').catch(() => null);
+export const clearToken = () => AsyncStorage.removeItem('token');
 
-export const getToken = async () => {
-  try {
-    return await AsyncStorage.getItem('token');
-  } catch (error) {
-    console.error('Error getting token:', error);
-    return null;
-  }
-};
-
-export const clearToken = async () => {
-  try {
-    await AsyncStorage.removeItem('token');
-  } catch (error) {
-    console.error('Error clearing token:', error);
-  }
-};
-
-export const setEmployee = async (employee) => {
-  try {
-    await AsyncStorage.setItem('employee', JSON.stringify(employee));
-  } catch (error) {
-    console.error('Error saving employee:', error);
-  }
-};
-
-export const getEmployee = async () => {
-  try {
-    const employee = await AsyncStorage.getItem('employee');
-    return employee ? JSON.parse(employee) : null;
-  } catch (error) {
-    console.error('Error getting employee:', error);
-    return null;
-  }
-};
-
-export const clearEmployee = async () => {
-  try {
-    await AsyncStorage.removeItem('employee');
-  } catch (error) {
-    console.error('Error clearing employee:', error);
-  }
-};
+export const setEmployee = (emp) => AsyncStorage.setItem('employee', JSON.stringify(emp));
+export const getEmployee = () =>
+  AsyncStorage.getItem('employee').then((v) => (v ? JSON.parse(v) : null)).catch(() => null);
+export const clearEmployee = () => AsyncStorage.removeItem('employee');
 
 export default api;

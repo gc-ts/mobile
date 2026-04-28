@@ -1,118 +1,96 @@
-import { StyleSheet } from 'react-native';
+export const lightColors = {
+  // Backgrounds
+  bg: '#EFEBDD',
+  bg2: '#E5E0CE',
+  paper: '#F6F3E8',
 
-export const colors = {
-  // Light theme colors (from web app)
-  bgPrimary: '#F4F6F2',
-  bgSecondary: '#FFFFFF',
-  bgTertiary: '#E8EDE4',
-  textPrimary: '#181C16',
-  textSecondary: '#181C16',
-  textTertiary: '#4A6050',
-  borderPrimary: '#C2CEBC',
-  accentPrimary: '#3D8210',
-  accentSecondary: '#2D6409',
-  accentBg: '#E8EDE4',
-  accentBorder: '#5FAD2E',
+  // Text
+  ink: '#14241B',
+  ink2: '#3B4C42',
+  ink3: '#6E7A6E',
 
-  // Message colors
-  botMessageBg: '#E8F5E0',
-  botMessageBorder: '#C8E6C0',
-  userMessageBg: '#D4ECC4',
-  userMessageText: '#2D6409',
-  userMessageBorder: '#B8DFA4',
+  // Borders
+  line: '#C9C2A8',
 
-  // Auth colors
-  authGradientStart: '#E8F5E0',
-  authGradientMid: '#D4ECC4',
-  authGradientEnd: '#C8E6C0',
+  // Accent
+  moss: '#2F4A39',
+  moss2: '#46624F',
+  sage: '#8FB996',
+  lichen: '#B7CFAF',
+  pistachio: '#C9E265',
+  hot: '#E76A3A',
 
-  // Green accent
-  green: '#5FAD2E',
-  greenLight: '#7BC84A',
-  greenDark: '#4A8C23',
+  // Chat bubbles
+  botBubbleBg: '#E8EDE4',
+  botBubbleBorder: '#C9C2A8',
+  userBubbleBg: '#2F4A39',
+  userBubbleText: '#F6F3E8',
+
+  // Tab bar
+  tabBarBg: '#F6F3E8',
+  tabBarBorder: '#C9C2A8',
+  tabActive: '#2F4A39',
+  tabInactive: '#6E7A6E',
 };
 
-export const commonStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
+export const darkColors = {
+  // Backgrounds
+  bg: '#0F1A14',
+  bg2: '#162010',
+  paper: '#1A2618',
 
-  shadow: {
-    shadowColor: colors.accentPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
+  // Text
+  ink: '#ECE7D5',
+  ink2: '#B8B0A0',
+  ink3: '#7A7268',
 
-  shadowLarge: {
-    shadowColor: colors.accentPrimary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 8,
-  },
+  // Borders
+  line: '#2A3828',
 
-  card: {
-    backgroundColor: colors.bgSecondary,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.borderPrimary,
-  },
+  // Accent
+  moss: '#6BAA7A',
+  moss2: '#8FBF9E',
+  sage: '#5A8A65',
+  lichen: '#3D6B48',
+  pistachio: '#C9E265',
+  hot: '#E76A3A',
 
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 2,
-    borderColor: 'rgba(95, 173, 46, 0.2)',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    fontFamily: 'System',
-    color: colors.textPrimary,
-  },
+  // Chat bubbles
+  botBubbleBg: '#1E2D22',
+  botBubbleBorder: '#2A3828',
+  userBubbleBg: '#6BAA7A',
+  userBubbleText: '#0F1A14',
 
-  inputFocused: {
-    borderColor: colors.green,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
+  // Tab bar
+  tabBarBg: '#1A2618',
+  tabBarBorder: '#2A3828',
+  tabActive: '#C9E265',
+  tabInactive: '#7A7268',
+};
 
-  button: {
-    backgroundColor: colors.green,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+export const getTheme = (isDark) => (isDark ? darkColors : lightColors);
 
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'System',
-  },
+export const typography = {
+  display: { fontFamily: 'Inter_700Bold', fontWeight: '700' },
+  heading: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  body: { fontFamily: 'Inter_400Regular', fontWeight: '400' },
+  label: { fontFamily: 'Inter_500Medium', fontWeight: '500' },
+};
 
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    fontFamily: 'System',
-  },
+export const radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  full: 9999,
+};
 
-  subtitle: {
-    fontSize: 16,
-    color: colors.textTertiary,
-    fontFamily: 'System',
-  },
-
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.accentSecondary,
-    marginBottom: 8,
-    fontFamily: 'System',
-  },
-});
-
-export default { colors, commonStyles };
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+};

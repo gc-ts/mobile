@@ -10,15 +10,19 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, commonStyles } from '../styles/theme';
-import { authAPI, setToken, setEmployee } from '../services/api';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { authAPI } from '../services/api';
+import { radius, spacing } from '../styles/theme';
 
-export default function AuthScreen({ onLogin }) {
+export default function AuthScreen() {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const { login } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     login: '',
     password: '',
     employeeId: '',
@@ -28,216 +32,202 @@ export default function AuthScreen({ onLogin }) {
     department: '',
   });
 
-  const handleChange = (field, value) => {
-    setFormData({ ...formData, [field]: value });
-  };
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleLogin = async () => {
-    if (!formData.login || !formData.password) {
+    if (!form.login || !form.password) {
       Alert.alert('Ошибка', 'Заполните все поля');
       return;
     }
-
     setLoading(true);
     try {
-      const response = await authAPI.login(formData.login, formData.password);
-      await setToken(response.token);
-      await setEmployee(response.employee);
-      onLogin(response.employee, response.token);
-    } catch (error) {
-      Alert.alert('Ошибка входа', error.response?.data?.message || 'Не удалось войти');
+      const res = await authAPI.login(form.login, form.password);
+      await login(res.employee, res.token);
+    } catch (e) {
+      Alert.alert('Ошибка входа', e.response?.data?.message || 'Не удалось войти');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegister = async () => {
-    if (!formData.employeeId || !formData.email || !formData.password || !formData.fullName) {
+    if (!form.employeeId || !form.email || !form.password || !form.fullName) {
       Alert.alert('Ошибка', 'Заполните все обязательные поля');
       return;
     }
-
     setLoading(true);
     try {
       await authAPI.register({
-        employeeId: formData.employeeId,
-        email: formData.email,
-        password: formData.password,
-        fullName: formData.fullName,
-        position: formData.position,
-        department: formData.department,
+        employeeId: form.employeeId,
+        email: form.email,
+        password: form.password,
+        fullName: form.fullName,
+        position: form.position,
+        department: form.department,
       });
-      Alert.alert('Успешно', 'Регистрация завершена! Теперь войдите в систему.');
+      Alert.alert('Готово', 'Регистрация завершена! Теперь войдите.');
       setIsLogin(true);
-    } catch (error) {
-      Alert.alert('Ошибка регистрации', error.response?.data?.message || 'Не удалось зарегистрироваться');
+    } catch (e) {
+      Alert.alert('Ошибка', e.response?.data?.message || 'Не удалось зарегистрироваться');
     } finally {
       setLoading(false);
     }
   };
 
+  const s = makeStyles(colors);
+
   return (
-    <LinearGradient
-      colors={[colors.authGradientStart, colors.authGradientMid, colors.authGradientEnd]}
-      style={styles.container}
-    >
+    <SafeAreaView style={s.root}>
+      <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
+        <Text style={s.themeIcon}>{isDark ? '☀️' : '🌙'}</Text>
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>
-            {/* Header */}
-            <View style={styles.header}>
-              <LinearGradient
-                colors={[colors.green, colors.greenLight]}
-                style={styles.logo}
-              >
-                <Text style={styles.logoText}>12</Text>
-                <Text style={styles.logoText}>21</Text>
-              </LinearGradient>
-              <Text style={styles.title}>HR AGENT AI</Text>
-              <Text style={styles.subtitle}>Ваш персональный HR-ассистент</Text>
+          {/* Header */}
+          <View style={s.header}>
+            <View style={s.logoWrap}>
+              <Text style={s.logoText}>Т</Text>
             </View>
+            <Text style={s.brand}>Техна.</Text>
+            <Text style={s.tagline}>HR-ассистент вашей компании</Text>
+          </View>
 
+          {/* Card */}
+          <View style={s.card}>
             {/* Tabs */}
-            <View style={styles.tabs}>
+            <View style={s.tabs}>
               <TouchableOpacity
-                style={[styles.tab, isLogin && styles.tabActive]}
+                style={[s.tab, isLogin && s.tabActive]}
                 onPress={() => setIsLogin(true)}
               >
-                <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Вход</Text>
+                <Text style={[s.tabText, isLogin && s.tabTextActive]}>Вход</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.tab, !isLogin && styles.tabActive]}
+                style={[s.tab, !isLogin && s.tabActive]}
                 onPress={() => setIsLogin(false)}
               >
-                <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Регистрация</Text>
+                <Text style={[s.tabText, !isLogin && s.tabTextActive]}>Регистрация</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Forms */}
             {isLogin ? (
-              <View style={styles.form}>
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Табельный номер или Email</Text>
+              <View style={s.form}>
+                <Field label="Табельный номер или Email" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="12345 или user@company.ru"
-                    value={formData.login}
-                    onChangeText={(value) => handleChange('login', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.login}
+                    onChangeText={(v) => set('login', v)}
                     autoCapitalize="none"
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Пароль</Text>
+                </Field>
+                <Field label="Пароль" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="Введите пароль"
-                    value={formData.password}
-                    onChangeText={(value) => handleChange('password', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.password}
+                    onChangeText={(v) => set('password', v)}
                     secureTextEntry
                     editable={!loading}
                   />
-                </View>
-
+                </Field>
                 <TouchableOpacity
-                  style={[styles.button, loading && styles.buttonDisabled]}
+                  style={[s.btn, loading && s.btnDisabled]}
                   onPress={handleLogin}
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color={colors.bg} />
                   ) : (
-                    <Text style={styles.buttonText}>Войти</Text>
+                    <Text style={s.btnText}>Войти</Text>
                   )}
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.form}>
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Табельный номер</Text>
+              <View style={s.form}>
+                <Field label="Табельный номер *" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="12345"
-                    value={formData.employeeId}
-                    onChangeText={(value) => handleChange('employeeId', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.employeeId}
+                    onChangeText={(v) => set('employeeId', v)}
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Email</Text>
+                </Field>
+                <Field label="Email *" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="user@company.ru"
-                    value={formData.email}
-                    onChangeText={(value) => handleChange('email', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.email}
+                    onChangeText={(v) => set('email', v)}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>ФИО</Text>
+                </Field>
+                <Field label="ФИО *" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="Иванов Иван Иванович"
-                    value={formData.fullName}
-                    onChangeText={(value) => handleChange('fullName', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.fullName}
+                    onChangeText={(v) => set('fullName', v)}
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Должность</Text>
+                </Field>
+                <Field label="Должность" colors={colors}>
                   <TextInput
-                    style={styles.input}
-                    placeholder="Developer"
-                    value={formData.position}
-                    onChangeText={(value) => handleChange('position', value)}
+                    style={s.input}
+                    placeholder="Разработчик"
+                    placeholderTextColor={colors.ink3}
+                    value={form.position}
+                    onChangeText={(v) => set('position', v)}
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Отдел</Text>
+                </Field>
+                <Field label="Отдел" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="IT"
-                    value={formData.department}
-                    onChangeText={(value) => handleChange('department', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.department}
+                    onChangeText={(v) => set('department', v)}
                     editable={!loading}
                   />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Пароль</Text>
+                </Field>
+                <Field label="Пароль *" colors={colors}>
                   <TextInput
-                    style={styles.input}
+                    style={s.input}
                     placeholder="Минимум 6 символов"
-                    value={formData.password}
-                    onChangeText={(value) => handleChange('password', value)}
+                    placeholderTextColor={colors.ink3}
+                    value={form.password}
+                    onChangeText={(v) => set('password', v)}
                     secureTextEntry
                     editable={!loading}
                   />
-                </View>
-
+                </Field>
                 <TouchableOpacity
-                  style={[styles.button, loading && styles.buttonDisabled]}
+                  style={[s.btn, loading && s.btnDisabled]}
                   onPress={handleRegister}
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color={colors.bg} />
                   ) : (
-                    <Text style={styles.buttonText}>Зарегистрироваться</Text>
+                    <Text style={s.btnText}>Зарегистрироваться</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -245,131 +235,148 @@ export default function AuthScreen({ onLogin }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderRadius: 24,
-    padding: 40,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    ...commonStyles.shadowLarge,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 5,
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.accentPrimary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textTertiary,
-  },
-  tabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24,
-  },
-  tab: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: 'rgba(232, 245, 224, 0.5)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(95, 173, 46, 0.1)',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: colors.green,
-    borderColor: 'transparent',
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textTertiary,
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  form: {
-    gap: 20,
-  },
-  formGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.accentSecondary,
-  },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 2,
-    borderColor: 'rgba(95, 173, 46, 0.2)',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  button: {
-    backgroundColor: colors.green,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 5,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+function Field({ label, colors, children }) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.ink2, fontFamily: 'Inter_600SemiBold' }}>
+        {label}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    themeBtn: {
+      position: 'absolute',
+      top: Platform.OS === 'ios' ? 56 : 16,
+      right: spacing.lg,
+      zIndex: 10,
+      padding: spacing.sm,
+    },
+    themeIcon: {
+      fontSize: 22,
+    },
+    scroll: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+      paddingTop: spacing.xxxl,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: spacing.xxxl,
+    },
+    logoWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: radius.xl,
+      backgroundColor: colors.moss,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+      shadowColor: colors.moss,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    logoText: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: colors.pistachio,
+      fontFamily: 'Inter_700Bold',
+    },
+    brand: {
+      fontSize: 30,
+      fontWeight: '700',
+      color: colors.ink,
+      fontFamily: 'Inter_700Bold',
+      marginBottom: 6,
+    },
+    tagline: {
+      fontSize: 14,
+      color: colors.ink3,
+      fontFamily: 'Inter_400Regular',
+    },
+    card: {
+      backgroundColor: colors.paper,
+      borderRadius: radius.lg,
+      padding: spacing.xxl,
+      borderWidth: 1,
+      borderColor: colors.line,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+    tabs: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.xxl,
+    },
+    tab: {
+      flex: 1,
+      padding: spacing.md,
+      backgroundColor: colors.bg2,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    tabActive: {
+      backgroundColor: colors.moss,
+      borderColor: 'transparent',
+    },
+    tabText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.ink3,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    tabTextActive: {
+      color: colors.pistachio,
+    },
+    form: {
+      gap: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.bg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      fontSize: 15,
+      color: colors.ink,
+      fontFamily: 'Inter_400Regular',
+    },
+    btn: {
+      backgroundColor: colors.moss,
+      borderRadius: radius.md,
+      padding: spacing.md + 2,
+      alignItems: 'center',
+      marginTop: spacing.sm,
+      shadowColor: colors.moss,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+    btnDisabled: { opacity: 0.6 },
+    btnText: {
+      color: colors.pistachio,
+      fontSize: 15,
+      fontWeight: '700',
+      fontFamily: 'Inter_700Bold',
+    },
+  });
