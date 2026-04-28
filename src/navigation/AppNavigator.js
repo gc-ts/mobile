@@ -70,20 +70,20 @@ function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="ChatTab"
-        component={ChatNavigator}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabItem focused={focused} label="ЧАТ" iconName="message-circle" colors={colors} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="ForumTab"
         component={ForumNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabItem focused={focused} label="ФОРУМ" iconName="book-open" colors={colors} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ChatTab"
+        component={ChatNavigator}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem focused={focused} label="ЧАТ" iconName="message-circle" colors={colors} />
           ),
         }}
       />

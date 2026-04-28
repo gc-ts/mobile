@@ -89,15 +89,17 @@ export default function ArticleScreen({ navigation, route }) {
       <AppTopBar />
 
       <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backBtnText}>← НАЗАД</Text>
-        </TouchableOpacity>
+        <View style={s.headerRow}>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={s.backBtnText}>← НАЗАД</Text>
+          </TouchableOpacity>
 
-        <View style={s.headerText}>
-          <Text style={s.headerKicker}>{article.categoryLabel}</Text>
-          <Text style={s.headerTitle}>
-            {article.icon} {article.title}
-          </Text>
+          <View style={s.headerText}>
+            <Text style={s.headerKicker}>{article.categoryLabel}</Text>
+            <Text style={s.headerTitle}>
+              {article.icon} {article.title}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -181,10 +183,13 @@ const makeStyles = (colors) =>
       backgroundColor: colors.paper,
       borderBottomWidth: 1,
       borderBottomColor: colors.line,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: spacing.md,
     },
     backBtn: {
-      alignSelf: 'flex-start',
       borderWidth: 1,
       borderColor: colors.line,
       backgroundColor: 'transparent',
@@ -198,19 +203,20 @@ const makeStyles = (colors) =>
       fontFamily: 'JetBrainsMono_600SemiBold',
     },
     headerText: {
-      gap: 4,
+      flex: 1,
+      gap: 2,
     },
     headerKicker: {
       color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.2,
+      fontSize: 9,
+      letterSpacing: 1,
       textTransform: 'uppercase',
       fontFamily: 'JetBrainsMono_500Medium',
     },
     headerTitle: {
       color: colors.ink,
-      fontSize: 24,
-      lineHeight: 30,
+      fontSize: 16,
+      lineHeight: 20,
       fontFamily: 'Fraunces_400Regular',
     },
     content: {

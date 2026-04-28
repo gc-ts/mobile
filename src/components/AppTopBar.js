@@ -64,20 +64,6 @@ export default function AppTopBar({
           <TouchableOpacity style={s.ghostBtn} onPress={toggleTheme}>
             <Text style={s.ghostBtnText}>{isDark ? 'LIGHT' : 'DARK'}</Text>
           </TouchableOpacity>
-
-          {!hideProfileChip ? (
-            <TouchableOpacity
-              style={s.userChip}
-              onPress={() => navigation.getParent()?.navigate('ProfileTab')}
-            >
-              <View style={s.userAvatar}>
-                <Text style={s.userAvatarText}>{getInitials(employee?.full_name)}</Text>
-              </View>
-              <Text style={s.userName} numberOfLines={1}>
-                {getShortName(employee?.full_name)}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
       </View>
 

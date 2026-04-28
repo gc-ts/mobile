@@ -71,15 +71,21 @@ export default function AuthScreen() {
     setFeedback('');
 
     try {
-      await authAPI.register({
+      const res = await authAPI.register({
         employeeId: form.employeeId.trim(),
         email: form.email.trim(),
         password: form.password,
         fullName: form.fullName.trim(),
       });
-      setField('login', form.employeeId.trim());
-      setIsLogin(true);
-      setFeedback('Регистрация успешна! Теперь войдите.', true);
+
+      // Автоматический вход после регистрации
+      if (res.token && res.employee) {
+        await login(res.employee, res.token);
+      } else {
+        // Если токен не вернулся, делаем автоматический логин
+        const loginRes = await authAPI.login(form.employeeId.trim(), form.password);
+        await login(loginRes.employee, loginRes.token);
+      }
     } catch {
       setFeedback('Ошибка регистрации. Попробуйте снова.');
     } finally {

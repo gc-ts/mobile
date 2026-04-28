@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -70,6 +70,78 @@ function BotLogo({ size = 40, colors }) {
   );
 }
 
+function TypingDots({ colors }) {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const createAnimation = (animValue, delay) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(animValue, {
+            toValue: -8,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animValue, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    const anim1 = createAnimation(dot1, 0);
+    const anim2 = createAnimation(dot2, 150);
+    const anim3 = createAnimation(dot3, 300);
+
+    anim1.start();
+    anim2.start();
+    anim3.start();
+
+    return () => {
+      anim1.stop();
+      anim2.stop();
+      anim3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', height: 20 }}>
+      <Animated.View
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: colors.moss,
+          transform: [{ translateY: dot1 }],
+        }}
+      />
+      <Animated.View
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: colors.moss,
+          transform: [{ translateY: dot2 }],
+        }}
+      />
+      <Animated.View
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: colors.moss,
+          transform: [{ translateY: dot3 }],
+        }}
+      />
+    </View>
+  );
+}
+
 export default function ChatScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { employee } = useAuth();
@@ -96,6 +168,10 @@ export default function ChatScreen({ navigation, route }) {
     })();
 
     return () => {
+      // Сохраняем текущие сообщения перед выходом
+      if (messages.length > 0) {
+        saveMessages(messages, chatTitle);
+      }
       cancelStreamRef.current?.();
     };
   }, [chatId, storageKey]);
@@ -186,13 +262,24 @@ export default function ChatScreen({ navigation, route }) {
         setIsTyping(false);
         cancelStreamRef.current = null;
 
-        setMessages((prev) => {
-          const finalMessages = prev.map((message) =>
-            message.id === botId ? { ...message, text: fullText, source } : message
-          );
-          saveMessages(finalMessages, nextTitle);
-          return finalMessages;
-        });
+        // Сохраняем сообщение бота даже если не все токены пришли
+        const finalMessages = messages.map((message) =>
+          message.id === botId ? { ...message, text: fullText || 'Ответ прерван', source } : message
+        );
+
+        // Если сообщение бота ещё не добавлено, добавляем его
+        if (!botMessageAdded && fullText) {
+          finalMessages.push({
+            id: botId,
+            text: fullText,
+            sender: 'bot',
+            timestamp: new Date().toISOString(),
+            source,
+          });
+        }
+
+        setMessages(finalMessages);
+        await saveMessages(finalMessages, nextTitle);
       },
       async () => {
         setIsStreaming(false);
@@ -300,10 +387,6 @@ export default function ChatScreen({ navigation, route }) {
             </View>
           </View>
         </View>
-
-        <TouchableOpacity style={s.iconBtn}>
-          <Feather name="more-vertical" size={20} color={colors.ink2} />
-        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -348,7 +431,7 @@ export default function ChatScreen({ navigation, route }) {
                   </View>
                   <View style={s.botColumn}>
                     <View style={s.typingBubble}>
-                      <ActivityIndicator size="small" color={colors.moss} />
+                      <TypingDots colors={colors} />
                     </View>
                   </View>
                 </View>
@@ -368,6 +451,7 @@ export default function ChatScreen({ navigation, route }) {
               editable={!isStreaming}
               multiline
               maxLength={1000}
+              textAlignVertical="center"
             />
 
             <TouchableOpacity
@@ -381,7 +465,7 @@ export default function ChatScreen({ navigation, route }) {
               <Feather
                 name="arrow-up"
                 size={18}
-                color={inputValue.trim() && !isStreaming ? colors.pistachio : colors.ink3}
+                color={inputValue.trim() && !isStreaming ? colors.paper : colors.ink3}
               />
             </TouchableOpacity>
           </View>
@@ -490,10 +574,7 @@ const makeStyles = (colors) =>
       backgroundColor: colors.paper,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
-      borderTopLeftRadius: 4,
-      borderTopRightRadius: 18,
-      borderBottomLeftRadius: 18,
-      borderBottomRightRadius: 18,
+      borderRadius: 4,
     },
     botBubbleText: {
       color: colors.ink,
@@ -527,10 +608,7 @@ const makeStyles = (colors) =>
       backgroundColor: colors.paper,
       paddingHorizontal: spacing.lg,
       paddingVertical: 14,
-      borderTopLeftRadius: 4,
-      borderTopRightRadius: 18,
-      borderBottomLeftRadius: 18,
-      borderBottomRightRadius: 18,
+      borderRadius: 4,
       alignSelf: 'flex-start',
     },
 
@@ -543,10 +621,7 @@ const makeStyles = (colors) =>
       backgroundColor: colors.moss,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 4,
-      borderBottomLeftRadius: 18,
-      borderBottomRightRadius: 18,
+      borderRadius: 4,
       maxWidth: '100%',
     },
     userBubbleText: {
@@ -595,7 +670,7 @@ const makeStyles = (colors) =>
       backgroundColor: colors.paper,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
-      borderRadius: 999,
+      borderRadius: 4,
     },
     quickEmoji: {
       fontSize: 18,
@@ -615,27 +690,28 @@ const makeStyles = (colors) =>
     },
     inputBar: {
       flexDirection: 'row',
-      alignItems: 'flex-end',
+      alignItems: 'center',
       gap: spacing.sm,
       backgroundColor: colors.paper,
-      borderRadius: 28,
-      paddingLeft: spacing.lg,
-      paddingRight: 6,
-      paddingVertical: 6,
+      borderRadius: 4,
+      paddingLeft: spacing.md,
+      paddingRight: spacing.sm,
+      paddingVertical: spacing.sm,
+      minHeight: 42,
     },
     input: {
       flex: 1,
       color: colors.ink,
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 14,
+      lineHeight: 20,
       fontFamily: 'Inter_400Regular',
-      paddingVertical: 10,
-      maxHeight: 120,
+      paddingVertical: 0,
+      maxHeight: 70,
     },
     sendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 999,
+      width: 32,
+      height: 32,
+      borderRadius: 4,
       backgroundColor: colors.moss,
       alignItems: 'center',
       justifyContent: 'center',
