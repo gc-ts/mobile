@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Feather } from '@expo/vector-icons';
@@ -15,6 +15,8 @@ const Tab = createBottomTabNavigator();
 const Root = createStackNavigator();
 
 function TabItem({ focused, label, iconName, colors }) {
+  const tint = focused ? colors.moss : colors.ink3;
+
   return (
     <View style={styles.itemRoot}>
       <View
@@ -23,31 +25,14 @@ function TabItem({ focused, label, iconName, colors }) {
           { backgroundColor: focused ? colors.pistachio : 'transparent' },
         ]}
       />
-      <View
-        style={[
-          styles.pill,
-          focused
-            ? {
-                backgroundColor: colors.mossWash,
-                borderColor: colors.moss,
-              }
-            : {
-                backgroundColor: 'transparent',
-                borderColor: 'transparent',
-              },
-        ]}
-      >
-        <Feather
-          name={iconName}
-          size={18}
-          color={focused ? colors.moss : colors.ink3}
-        />
+      <View style={styles.pill}>
+        <Feather name={iconName} size={18} color={tint} />
       </View>
       <Text
         style={[
           styles.label,
           {
-            color: focused ? colors.moss : colors.ink3,
+            color: tint,
             fontFamily: focused ? 'JetBrainsMono_600SemiBold' : 'JetBrainsMono_500Medium',
           },
         ]}
@@ -67,10 +52,12 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        animation: 'none',
         tabBarStyle: {
           backgroundColor: colors.paper,
-          borderTopColor: colors.line,
-          borderTopWidth: 1,
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
           height: Platform.OS === 'ios' ? 74 : 58,
           paddingBottom: Platform.OS === 'ios' ? 20 : 4,
           paddingTop: 0,
@@ -156,7 +143,6 @@ const styles = StyleSheet.create({
     height: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
   },
   label: {
     fontSize: 9,
