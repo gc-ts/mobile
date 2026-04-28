@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,20 +18,72 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { employeeAPI } from '../../services/api';
 import { spacing } from '../../styles/theme';
 
+const PROFILE_FIELDS = [
+  { key: 'fullName', label: 'ФИО', placeholder: 'Потапов Артем Павлович' },
+  { key: 'middleName', label: 'Отчество', placeholder: 'Павлович' },
+  { key: 'email', label: 'Email', placeholder: 'name@company.ru' },
+  { key: 'additionalEmail', label: 'Доп. email', placeholder: 'personal@example.com' },
+  { key: 'position', label: 'Должность', placeholder: 'Senior Developer' },
+  { key: 'department', label: 'Отдел', placeholder: 'IT' },
+  { key: 'phone', label: 'Телефон', placeholder: '+7 (999) 123-45-67' },
+  { key: 'telegram', label: 'Telegram', placeholder: '@username' },
+  { key: 'city', label: 'Город', placeholder: 'Москва' },
+  { key: 'oneCCode', label: 'Код 1С', placeholder: '1C-123' },
+  { key: 'birthDate', label: 'Дата рождения', placeholder: '1990-05-20' },
+  { key: 'hireDate', label: 'Дата приема', placeholder: '2020-01-15' },
+  { key: 'medicalExamDate', label: 'Медосмотр', placeholder: '2026-06-01' },
+  { key: 'sanitaryMinimumDate', label: 'Санминимум', placeholder: '2026-08-01' },
+  { key: 'vacationDays', label: 'Дней отпуска', placeholder: '28', keyboardType: 'numeric' },
+  { key: 'nextVacation', label: 'Следующий отпуск', placeholder: '2026-07-01' },
+  { key: 'salary', label: 'Зарплата', placeholder: '120000', keyboardType: 'numeric' },
+  { key: 'bonusBalance', label: 'Бонусы', placeholder: '0', keyboardType: 'numeric' },
+];
+
 function pick(employee, snakeKey, camelKey) {
-  return employee?.[snakeKey] ?? employee?.[camelKey] ?? null;
+  return employee?.[camelKey] ?? employee?.[snakeKey] ?? null;
 }
 
 function getEmployeeId(employee) {
-  return pick(employee, 'employee_id', 'employeeId') ?? pick(employee, 'id', 'id');
+  return pick(employee, 'employee_id', 'employeeId') ?? employee?.id ?? null;
 }
 
-function getFullName(employee) {
-  return pick(employee, 'full_name', 'fullName') ?? 'Пользователь';
+function normalizeEmployee(employee) {
+  return {
+    employeeId: getEmployeeId(employee) || '',
+    fullName: pick(employee, 'full_name', 'fullName') || '',
+    middleName: pick(employee, 'middle_name', 'middleName') || '',
+    email: pick(employee, 'email', 'email') || '',
+    additionalEmail: pick(employee, 'additional_email', 'additionalEmail') || '',
+    position: pick(employee, 'position', 'position') || '',
+    department: pick(employee, 'department', 'department') || '',
+    phone: pick(employee, 'phone', 'phone') || '',
+    telegram: pick(employee, 'telegram', 'telegram') || '',
+    city: pick(employee, 'city', 'city') || '',
+    oneCCode: pick(employee, 'one_c_code', 'oneCCode') || '',
+    birthDate: pick(employee, 'birth_date', 'birthDate') || '',
+    hireDate: pick(employee, 'hire_date', 'hireDate') || '',
+    medicalExamDate: pick(employee, 'medical_exam_date', 'medicalExamDate') || '',
+    sanitaryMinimumDate: pick(employee, 'sanitary_minimum_date', 'sanitaryMinimumDate') || '',
+    vacationDays: String(pick(employee, 'vacation_days', 'vacationDays') ?? ''),
+    nextVacation: pick(employee, 'next_vacation', 'nextVacation') || '',
+    salary: String(pick(employee, 'salary', 'salary') ?? ''),
+    bonusBalance: String(pick(employee, 'bonus_balance', 'bonusBalance') ?? ''),
+    role: pick(employee, 'role', 'role') || 'employee',
+  };
+}
+
+function compactPayload(form) {
+  const payload = {};
+  Object.entries(form).forEach(([key, value]) => {
+    if (key === 'employeeId' || key === 'role') return;
+    if (value === '') return;
+    payload[key] = ['vacationDays', 'salary', 'bonusBalance'].includes(key) ? Number(value) : value;
+  });
+  return payload;
 }
 
 function getInitials(fullName) {
-  return fullName
+  return (fullName || 'Пользователь')
     .split(' ')
     .filter(Boolean)
     .map((part) => part[0])
@@ -42,23 +96,14 @@ function formatDate(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function formatShortDate(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-  });
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
 function getAgeFromDate(value, apiAge) {
@@ -78,29 +123,47 @@ function getAgeFromDate(value, apiAge) {
   return `${age}`;
 }
 
-function DetailRow({ colors, label, value }) {
+function FormField({ colors, field, value, editable, onChange }) {
   return (
-    <View style={[styles.detailRow, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-      <Text style={[styles.detailLabel, { color: colors.ink3 }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: colors.ink }]}>{value || '—'}</Text>
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: colors.ink3 }]}>{field.label}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink },
+          !editable && { opacity: 0.65 },
+        ]}
+        editable={editable}
+        placeholder={field.placeholder}
+        placeholderTextColor={colors.ink3}
+        value={value}
+        keyboardType={field.keyboardType || 'default'}
+        onChangeText={(nextValue) => onChange(field.key, nextValue)}
+      />
     </View>
   );
 }
 
 export default function ProfileScreen() {
-  const { employee, logout } = useAuth();
+  const { employee, logout, updateEmployee } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const [profile, setProfile] = useState(employee);
+  const [form, setForm] = useState(() => normalizeEmployee(employee));
   const [vacation, setVacation] = useState(null);
   const [birthday, setBirthday] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveNotice, setSaveNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const employeeId = getEmployeeId(employee);
-  const fullName = getFullName(profile);
+  const fullName = form.fullName || 'Пользователь';
+  const s = makeStyles(colors);
 
   useEffect(() => {
     setProfile(employee);
+    setForm(normalizeEmployee(employee));
   }, [employee]);
 
   useEffect(() => {
@@ -113,11 +176,8 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
 
     const [employeeResult, vacationResult, birthdayResult] = await Promise.allSettled([
       employeeAPI.getEmployee(employeeId),
@@ -126,22 +186,69 @@ export default function ProfileScreen() {
     ]);
 
     if (employeeResult.status === 'fulfilled') {
-      setProfile((prev) => ({ ...prev, ...employeeResult.value }));
+      const nextProfile = { ...(employee || {}), ...employeeResult.value };
+      setProfile(nextProfile);
+      setForm(normalizeEmployee(nextProfile));
+      await updateEmployee(nextProfile);
     }
 
-    if (vacationResult.status === 'fulfilled') {
-      setVacation(vacationResult.value);
-    }
-
-    if (birthdayResult.status === 'fulfilled') {
-      setBirthday(birthdayResult.value);
-    }
+    if (vacationResult.status === 'fulfilled') setVacation(vacationResult.value);
+    if (birthdayResult.status === 'fulfilled') setBirthday(birthdayResult.value);
 
     setLoading(false);
     setRefreshing(false);
   }
 
-  const s = makeStyles(colors);
+  function updateForm(key, value) {
+    setSaveNotice(null);
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function saveProfile() {
+    if (!employeeId) {
+      setSaveNotice({ type: 'error', text: 'Не найден табельный номер пользователя.' });
+      return;
+    }
+    setIsSaving(true);
+    setSaveNotice(null);
+    const nextProfile = { ...(profile || {}), ...form };
+    try {
+      const saved = await employeeAPI.updateEmployee(employeeId, compactPayload(form));
+      const syncedProfile = { ...nextProfile, ...saved };
+      setProfile(syncedProfile);
+      await updateEmployee(syncedProfile);
+      setIsEditing(false);
+      setSaveNotice({ type: 'success', text: 'Профиль обновлен.' });
+      Alert.alert('Готово', 'Профиль обновлен.');
+    } catch (error) {
+      const status = error?.response?.status;
+      const isMissingUpdateEndpoint =
+        status === 404 ||
+        status === 405 ||
+        error?.code === 'ERR_NETWORK' ||
+        error?.response?.data?.error === 'Route not found';
+
+      if (isMissingUpdateEndpoint) {
+        setProfile(nextProfile);
+        await updateEmployee(nextProfile);
+        setIsEditing(false);
+        setSaveNotice({
+          type: 'warning',
+          text: 'Сохранено локально. Backend пока не отдает endpoint для обновления профиля, поэтому после перелогина данные могут вернуться с сервера.',
+        });
+        return;
+      }
+
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        'Не удалось сохранить профиль.';
+      Alert.alert('Ошибка', message);
+      setSaveNotice({ type: 'error', text: message });
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -176,38 +283,71 @@ export default function ProfileScreen() {
           <View style={s.avatar}>
             <Text style={s.avatarText}>{getInitials(fullName)}</Text>
           </View>
-
           <Text style={s.name}>{fullName}</Text>
           <Text style={s.employeeId}>ID: {employeeId || '—'}</Text>
-
-          <Text style={s.position}>{pick(profile, 'position', 'position') || 'Должность не указана'}</Text>
-          <Text style={s.department}>{pick(profile, 'department', 'department') || 'Отдел не указан'}</Text>
-
+          <Text style={s.position}>{form.position || 'Должность не указана'}</Text>
+          <Text style={s.department}>{form.department || 'Отдел не указан'}</Text>
           <View style={s.roleBadge}>
-            <Text style={s.roleBadgeText}>
-              {pick(profile, 'role', 'role') === 'admin' ? '★ ADMIN' : 'EMPLOYEE'}
-            </Text>
+            <Text style={s.roleBadgeText}>{form.role === 'admin' ? 'ADMIN' : 'EMPLOYEE'}</Text>
           </View>
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Профиль</Text>
-          <View style={s.detailsCard}>
-            <DetailRow colors={colors} label="Табельный номер" value={employeeId} />
-            <DetailRow colors={colors} label="Email" value={pick(profile, 'email', 'email')} />
-            <DetailRow colors={colors} label="Должность" value={pick(profile, 'position', 'position')} />
-            <DetailRow colors={colors} label="Отдел" value={pick(profile, 'department', 'department')} />
-            <DetailRow colors={colors} label="Телефон" value={pick(profile, 'phone', 'phone')} />
-            <DetailRow
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>Профиль</Text>
+            <TouchableOpacity
+              style={s.inlineBtn}
+              onPress={() => {
+                if (isEditing) setForm(normalizeEmployee(profile));
+                setIsEditing((value) => !value);
+              }}
+              disabled={isSaving}
+            >
+              <Text style={s.inlineBtnText}>{isEditing ? 'CANCEL' : 'EDIT'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={s.formCard}>
+            {saveNotice ? (
+              <View
+                style={[
+                  s.notice,
+                  saveNotice.type === 'success' && s.noticeSuccess,
+                  saveNotice.type === 'warning' && s.noticeWarning,
+                  saveNotice.type === 'error' && s.noticeError,
+                ]}
+              >
+                <Text style={s.noticeText}>{saveNotice.text}</Text>
+              </View>
+            ) : null}
+
+            <FormField
               colors={colors}
-              label="Дата рождения"
-              value={formatDate(pick(profile, 'birth_date', 'birthDate') ?? birthday?.birthDate)}
+              field={{ key: 'employeeId', label: 'Табельный номер', placeholder: '12345' }}
+              value={form.employeeId}
+              editable={false}
+              onChange={updateForm}
             />
-            <DetailRow
-              colors={colors}
-              label="Дата приема на работу"
-              value={formatDate(pick(profile, 'hire_date', 'hireDate'))}
-            />
+            {PROFILE_FIELDS.map((field) => (
+              <FormField
+                key={field.key}
+                colors={colors}
+                field={field}
+                value={form[field.key]}
+                editable={isEditing}
+                onChange={updateForm}
+              />
+            ))}
+
+            {isEditing ? (
+              <TouchableOpacity
+                style={[s.primaryBtn, isSaving && s.disabledBtn]}
+                onPress={saveProfile}
+                disabled={isSaving}
+              >
+                {isSaving ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>SAVE PROFILE</Text>}
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 
@@ -215,26 +355,21 @@ export default function ProfileScreen() {
           <Text style={s.sectionTitle}>HR Snapshot</Text>
           <View style={s.metricsRow}>
             <View style={s.metricCard}>
-              <Text style={s.metricValue}>
-                {vacation?.remainingDays ?? pick(profile, 'vacation_days', 'vacationDays') ?? '—'}
-              </Text>
+              <Text style={s.metricValue}>{(vacation?.remainingDays ?? form.vacationDays) || '—'}</Text>
               <Text style={s.metricLabel}>days left</Text>
             </View>
             <View style={s.metricCard}>
-              <Text style={s.metricValue}>
-                {formatShortDate(vacation?.nextVacation ?? pick(profile, 'next_vacation', 'nextVacation'))}
-              </Text>
+              <Text style={s.metricValue}>{formatShortDate(vacation?.nextVacation ?? form.nextVacation)}</Text>
               <Text style={s.metricLabel}>next vacation</Text>
             </View>
             <View style={s.metricCard}>
-              <Text style={s.metricValue}>
-                {getAgeFromDate(
-                  pick(profile, 'birth_date', 'birthDate') ?? birthday?.birthDate,
-                  birthday?.age
-                )}
-              </Text>
+              <Text style={s.metricValue}>{getAgeFromDate(form.birthDate ?? birthday?.birthDate, birthday?.age)}</Text>
               <Text style={s.metricLabel}>age</Text>
             </View>
+          </View>
+          <View style={s.infoCard}>
+            <Text style={s.infoText}>Дата рождения: {formatDate(form.birthDate ?? birthday?.birthDate)}</Text>
+            <Text style={s.infoText}>Дата приема: {formatDate(form.hireDate)}</Text>
           </View>
         </View>
 
@@ -242,13 +377,10 @@ export default function ProfileScreen() {
           <Text style={s.sectionTitle}>Настройки</Text>
           <View style={s.actionsCard}>
             <TouchableOpacity style={s.secondaryBtn} onPress={toggleTheme}>
-              <Text style={s.secondaryBtnText}>
-                {isDark ? 'SWITCH TO LIGHT' : 'SWITCH TO DARK'}
-              </Text>
+              <Text style={s.secondaryBtnText}>{isDark ? 'SWITCH TO LIGHT' : 'SWITCH TO DARK'}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={s.primaryBtn} onPress={logout}>
-              <Text style={s.primaryBtnText}>LOGOUT</Text>
+            <TouchableOpacity style={s.logoutBtn} onPress={logout}>
+              <Text style={s.logoutBtnText}>LOGOUT</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -258,20 +390,20 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  detailRow: {
-    borderWidth: 1,
-    padding: spacing.md,
+  field: {
     gap: 6,
   },
-  detailLabel: {
+  fieldLabel: {
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 1,
     fontFamily: 'JetBrainsMono_500Medium',
   },
-  detailValue: {
+  input: {
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
     fontSize: 14,
-    lineHeight: 20,
     fontFamily: 'Inter_400Regular',
   },
 });
@@ -375,6 +507,12 @@ const makeStyles = (colors) =>
     section: {
       gap: spacing.sm,
     },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
     sectionTitle: {
       color: colors.ink3,
       fontSize: 10,
@@ -382,8 +520,48 @@ const makeStyles = (colors) =>
       textTransform: 'uppercase',
       fontFamily: 'JetBrainsMono_600SemiBold',
     },
-    detailsCard: {
-      gap: spacing.sm,
+    inlineBtn: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      backgroundColor: colors.paper,
+    },
+    inlineBtnText: {
+      color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    formCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    notice: {
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    noticeSuccess: {
+      backgroundColor: colors.mossWash,
+      borderColor: colors.moss,
+    },
+    noticeWarning: {
+      backgroundColor: colors.pistachioWash,
+      borderColor: colors.pistachio,
+    },
+    noticeError: {
+      backgroundColor: colors.hotWash,
+      borderColor: colors.hot,
+    },
+    noticeText: {
+      color: colors.ink,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily: 'Inter_400Regular',
     },
     metricsRow: {
       flexDirection: 'row',
@@ -412,21 +590,35 @@ const makeStyles = (colors) =>
       textTransform: 'uppercase',
       fontFamily: 'JetBrainsMono_400Regular',
     },
+    infoCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.md,
+      gap: 6,
+    },
+    infoText: {
+      color: colors.ink2,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily: 'Inter_400Regular',
+    },
     actionsCard: {
       gap: spacing.sm,
     },
     primaryBtn: {
-      backgroundColor: 'transparent',
-      borderWidth: 1,
-      borderColor: colors.hot,
+      backgroundColor: colors.ink,
       paddingVertical: 14,
       alignItems: 'center',
     },
     primaryBtnText: {
-      color: colors.hot,
+      color: colors.bg,
       fontSize: 10,
       letterSpacing: 1.2,
       fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    disabledBtn: {
+      opacity: 0.5,
     },
     secondaryBtn: {
       backgroundColor: 'transparent',
@@ -437,6 +629,19 @@ const makeStyles = (colors) =>
     },
     secondaryBtnText: {
       color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    logoutBtn: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: colors.hot,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    logoutBtnText: {
+      color: colors.hot,
       fontSize: 10,
       letterSpacing: 1.2,
       fontFamily: 'JetBrainsMono_600SemiBold',

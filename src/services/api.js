@@ -210,6 +210,9 @@ export const employeeAPI = {
 
   searchByName: (name) =>
     api.get(`/employee/search/by-name?name=${encodeURIComponent(name)}`).then((r) => r.data),
+
+  updateEmployee: (employeeId, data) =>
+    api.put(`/employee/${employeeId}`, data).then((r) => r.data.employee || r.data),
 };
 
 // Documents
@@ -249,6 +252,8 @@ export const knowledgeAPI = {
   search: (query) => api.post('/knowledge/search', { query }).then((r) => r.data),
   reindex: () => api.post('/knowledge/reindex').then((r) => r.data),
   getIndexStatus: () => api.get('/knowledge/index').then((r) => r.data),
+  getCorporateSync: () => api.get('/knowledge/corporate-sync').then((r) => r.data),
+  syncCorporate: () => api.post('/knowledge/sync-corporate').then((r) => r.data),
 };
 
 // Token & employee helpers

@@ -19,43 +19,138 @@ import { documentsAPI, employeeAPI, knowledgeAPI } from '../../services/api';
 import { spacing } from '../../styles/theme';
 
 const TABS = [
-  { key: 'documents', label: 'ДОКУМЕНТЫ' },
-  { key: 'knowledge', label: 'БАЗА ЗНАНИЙ' },
-  { key: 'employees', label: 'СОТРУДНИКИ' },
+  { key: 'documents', label: 'DOCS' },
+  { key: 'knowledge', label: 'INDEX' },
+  { key: 'employees', label: 'USERS' },
 ];
 
 const DOC_TYPES = [
   { value: 'policy', label: 'Политика' },
   { value: 'procedure', label: 'Процедура' },
-  { value: 'guide', label: 'Руководство' },
+  { value: 'guide', label: 'Гайд' },
   { value: 'form', label: 'Форма' },
   { value: 'other', label: 'Другое' },
 ];
 
+const USER_FIELDS = [
+  { key: 'fullName', label: 'ФИО' },
+  { key: 'middleName', label: 'Отчество' },
+  { key: 'email', label: 'Email' },
+  { key: 'additionalEmail', label: 'Доп. email' },
+  { key: 'position', label: 'Должность' },
+  { key: 'department', label: 'Отдел' },
+  { key: 'phone', label: 'Телефон' },
+  { key: 'telegram', label: 'Telegram' },
+  { key: 'city', label: 'Город' },
+  { key: 'oneCCode', label: 'Код 1С' },
+  { key: 'birthDate', label: 'Дата рождения' },
+  { key: 'hireDate', label: 'Дата приема' },
+  { key: 'medicalExamDate', label: 'Медосмотр' },
+  { key: 'sanitaryMinimumDate', label: 'Санминимум' },
+  { key: 'vacationDays', label: 'Дней отпуска', keyboardType: 'numeric' },
+  { key: 'nextVacation', label: 'Следующий отпуск' },
+  { key: 'salary', label: 'Зарплата', keyboardType: 'numeric' },
+  { key: 'bonusBalance', label: 'Бонусы', keyboardType: 'numeric' },
+];
+
+function pick(entity, snakeKey, camelKey) {
+  return entity?.[camelKey] ?? entity?.[snakeKey] ?? null;
+}
+
+function getEmployeeId(entity) {
+  return pick(entity, 'employee_id', 'employeeId') ?? entity?.id ?? null;
+}
+
+function normalizeEmployee(entity) {
+  return {
+    employeeId: getEmployeeId(entity) || '',
+    fullName: pick(entity, 'full_name', 'fullName') || '',
+    middleName: pick(entity, 'middle_name', 'middleName') || '',
+    email: pick(entity, 'email', 'email') || '',
+    additionalEmail: pick(entity, 'additional_email', 'additionalEmail') || '',
+    position: pick(entity, 'position', 'position') || '',
+    department: pick(entity, 'department', 'department') || '',
+    phone: pick(entity, 'phone', 'phone') || '',
+    telegram: pick(entity, 'telegram', 'telegram') || '',
+    city: pick(entity, 'city', 'city') || '',
+    oneCCode: pick(entity, 'one_c_code', 'oneCCode') || '',
+    birthDate: pick(entity, 'birth_date', 'birthDate') || '',
+    hireDate: pick(entity, 'hire_date', 'hireDate') || '',
+    medicalExamDate: pick(entity, 'medical_exam_date', 'medicalExamDate') || '',
+    sanitaryMinimumDate: pick(entity, 'sanitary_minimum_date', 'sanitaryMinimumDate') || '',
+    vacationDays: String(pick(entity, 'vacation_days', 'vacationDays') ?? ''),
+    nextVacation: pick(entity, 'next_vacation', 'nextVacation') || '',
+    salary: String(pick(entity, 'salary', 'salary') ?? ''),
+    bonusBalance: String(pick(entity, 'bonus_balance', 'bonusBalance') ?? ''),
+    role: pick(entity, 'role', 'role') || 'employee',
+  };
+}
+
+function compactPayload(form) {
+  const payload = {};
+  Object.entries(form).forEach(([key, value]) => {
+    if (key === 'employeeId') return;
+    if (value === '') return;
+    payload[key] = ['vacationDays', 'salary', 'bonusBalance'].includes(key) ? Number(value) : value;
+  });
+  return payload;
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('ru-RU');
+}
+
+function AdminField({ colors, field, value, onChange, editable = true }) {
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: colors.ink3 }]}>{field.label}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink },
+          !editable && { opacity: 0.65 },
+        ]}
+        editable={editable}
+        value={value}
+        onChangeText={(nextValue) => onChange(field.key, nextValue)}
+        placeholder="—"
+        placeholderTextColor={colors.ink3}
+        keyboardType={field.keyboardType || 'default'}
+      />
+    </View>
+  );
+}
+
 export default function AdminScreen() {
   const { colors } = useTheme();
   const [tab, setTab] = useState('documents');
-
-  // Documents
   const [documents, setDocuments] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadCategory, setUploadCategory] = useState('');
   const [uploadType, setUploadType] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-
-  // Knowledge
   const [indexStatus, setIndexStatus] = useState(null);
+  const [corporateSync, setCorporateSync] = useState(null);
   const [isReindexing, setIsReindexing] = useState(false);
-
-  // Employees
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employeeForm, setEmployeeForm] = useState(normalizeEmployee(null));
   const [isSearching, setIsSearching] = useState(false);
-
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+
+  const s = makeStyles(colors);
+  const totalChunks = indexStatus?.stats?.total ?? 0;
+  const indexedDocuments = indexStatus?.documents?.length ?? 0;
 
   useEffect(() => {
     loadInitialData();
@@ -66,9 +161,10 @@ export default function AdminScreen() {
     else setLoading(true);
     setError(null);
 
-    const [docsRes, statusRes] = await Promise.allSettled([
+    const [docsRes, statusRes, syncRes] = await Promise.allSettled([
       documentsAPI.getDocuments(),
       knowledgeAPI.getIndexStatus(),
+      knowledgeAPI.getCorporateSync(),
     ]);
 
     if (docsRes.status === 'fulfilled') {
@@ -78,15 +174,14 @@ export default function AdminScreen() {
       setError('Не удалось загрузить документы.');
     }
 
-    if (statusRes.status === 'fulfilled') {
-      setIndexStatus(statusRes.value);
-    }
+    if (statusRes.status === 'fulfilled') setIndexStatus(statusRes.value);
+    if (syncRes.status === 'fulfilled') setCorporateSync(syncRes.value);
 
     setLoading(false);
     setRefreshing(false);
   }
 
-  const pickFile = async () => {
+  async function pickFile() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
@@ -105,31 +200,32 @@ export default function AdminScreen() {
     } catch {
       Alert.alert('Ошибка', 'Не удалось выбрать файл.');
     }
-  };
+  }
 
-  const handleUpload = async () => {
+  async function handleUpload() {
     if (!uploadFile || !uploadTitle.trim() || !uploadCategory.trim() || !uploadType) {
-      Alert.alert('Заполните все поля', 'Выберите файл, укажите название, категорию и тип.');
+      Alert.alert('Заполните поля', 'Выберите файл, название, категорию и тип документа.');
       return;
     }
+
     setIsUploading(true);
     try {
       await documentsAPI.uploadDocument(uploadFile, uploadTitle.trim(), uploadCategory.trim(), uploadType);
-      Alert.alert('Готово', 'Документ загружен.');
       setUploadFile(null);
       setUploadTitle('');
       setUploadCategory('');
       setUploadType('');
       await loadInitialData();
-    } catch {
-      Alert.alert('Ошибка', 'Не удалось загрузить документ.');
+      Alert.alert('Готово', 'Документ загружен.');
+    } catch (uploadError) {
+      Alert.alert('Ошибка', uploadError?.response?.data?.message || 'Не удалось загрузить документ.');
     } finally {
       setIsUploading(false);
     }
-  };
+  }
 
-  const handleDelete = (docId, docTitle) => {
-    Alert.alert('Удалить документ?', docTitle, [
+  function handleDelete(docId, docTitle) {
+    Alert.alert('Удалить документ?', docTitle || 'Документ', [
       { text: 'Отмена', style: 'cancel' },
       {
         text: 'Удалить',
@@ -137,16 +233,16 @@ export default function AdminScreen() {
         onPress: async () => {
           try {
             await documentsAPI.deleteDocument(docId);
-            await loadInitialData();
+            await loadInitialData(true);
           } catch {
             Alert.alert('Ошибка', 'Не удалось удалить документ.');
           }
         },
       },
     ]);
-  };
+  }
 
-  const handleReindex = () => {
+  function handleReindex() {
     Alert.alert('Запустить реиндексацию?', 'Процесс может занять несколько минут.', [
       { text: 'Отмена', style: 'cancel' },
       {
@@ -155,8 +251,8 @@ export default function AdminScreen() {
           setIsReindexing(true);
           try {
             await knowledgeAPI.reindex();
+            await loadInitialData(true);
             Alert.alert('Готово', 'Реиндексация запущена.');
-            setTimeout(loadInitialData, 2000);
           } catch {
             Alert.alert('Ошибка', 'Не удалось запустить реиндексацию.');
           } finally {
@@ -165,22 +261,82 @@ export default function AdminScreen() {
         },
       },
     ]);
-  };
+  }
 
-  const handleSearch = async () => {
+  async function handleCorporateSync() {
+    setIsSyncing(true);
+    try {
+      const result = await knowledgeAPI.syncCorporate();
+      await loadInitialData(true);
+      Alert.alert('Готово', result?.message || 'Синхронизация запущена.');
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось запустить синхронизацию портала.');
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function handleSearch() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
+    setSelectedEmployee(null);
     try {
       const res = await employeeAPI.searchByName(searchQuery.trim());
       setSearchResults(Array.isArray(res) ? res : res.employees || []);
     } catch {
       setSearchResults([]);
+      Alert.alert('Ошибка', 'Не удалось выполнить поиск сотрудника.');
     } finally {
       setIsSearching(false);
     }
-  };
+  }
 
-  const s = makeStyles(colors);
+  async function selectEmployee(employee) {
+    const employeeId = getEmployeeId(employee);
+    if (!employeeId) return;
+    setIsLoadingEmployee(true);
+    try {
+      const detailedEmployee = await employeeAPI.getEmployee(employeeId);
+      const nextEmployee = { ...employee, ...detailedEmployee };
+      setSelectedEmployee(nextEmployee);
+      setEmployeeForm(normalizeEmployee(nextEmployee));
+    } catch {
+      setSelectedEmployee(employee);
+      setEmployeeForm(normalizeEmployee(employee));
+    } finally {
+      setIsLoadingEmployee(false);
+    }
+  }
+
+  function updateEmployeeForm(key, value) {
+    setEmployeeForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function saveEmployee() {
+    if (!employeeForm.employeeId) return;
+    setIsSavingEmployee(true);
+    try {
+      const saved = await employeeAPI.updateEmployee(employeeForm.employeeId, compactPayload(employeeForm));
+      const nextEmployee = { ...(selectedEmployee || {}), ...saved, ...employeeForm };
+      setSelectedEmployee(nextEmployee);
+      setEmployeeForm(normalizeEmployee(nextEmployee));
+      Alert.alert('Готово', 'Параметры сотрудника обновлены.');
+    } catch (saveError) {
+      const status = saveError?.response?.status;
+      const isMissingUpdateEndpoint =
+        status === 404 ||
+        status === 405 ||
+        saveError?.code === 'ERR_NETWORK' ||
+        saveError?.response?.data?.error === 'Route not found';
+      const message =
+        isMissingUpdateEndpoint
+          ? 'В текущей OpenAPI-документации нет endpoint для изменения сотрудника. Нужен PATCH /api/employee/{id} на backend.'
+          : saveError?.response?.data?.message || saveError?.response?.data?.error || 'Не удалось сохранить сотрудника.';
+      Alert.alert('Ошибка', message);
+    } finally {
+      setIsSavingEmployee(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -198,7 +354,7 @@ export default function AdminScreen() {
       <View style={s.header}>
         <Text style={s.headerKicker}>ADMIN</Text>
         <Text style={s.headerTitle}>Панель управления.</Text>
-        <Text style={s.headerSubtitle}>Документы, база знаний и сотрудники</Text>
+        <Text style={s.headerSubtitle}>Документы, индекс знаний и параметры сотрудников</Text>
       </View>
 
       <View style={s.tabsRow}>
@@ -234,31 +390,10 @@ export default function AdminScreen() {
           <>
             <View style={s.card}>
               <Text style={s.sectionKicker}>Загрузить документ</Text>
-
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Название</Text>
-                <TextInput
-                  style={s.input}
-                  placeholder="Например, Положение об отпусках"
-                  placeholderTextColor={colors.ink3}
-                  value={uploadTitle}
-                  onChangeText={setUploadTitle}
-                />
-              </View>
-
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Категория</Text>
-                <TextInput
-                  style={s.input}
-                  placeholder="HR, Юр.отдел, IT"
-                  placeholderTextColor={colors.ink3}
-                  value={uploadCategory}
-                  onChangeText={setUploadCategory}
-                />
-              </View>
-
-              <View style={s.field}>
-                <Text style={s.fieldLabel}>Тип документа</Text>
+              <AdminField colors={colors} field={{ key: 'title', label: 'Название' }} value={uploadTitle} onChange={(_, v) => setUploadTitle(v)} />
+              <AdminField colors={colors} field={{ key: 'category', label: 'Категория' }} value={uploadCategory} onChange={(_, v) => setUploadCategory(v)} />
+              <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.ink3 }]}>Тип документа</Text>
                 <View style={s.chipsRow}>
                   {DOC_TYPES.map((type) => (
                     <TouchableOpacity
@@ -266,53 +401,37 @@ export default function AdminScreen() {
                       style={[s.chip, uploadType === type.value && s.chipActive]}
                       onPress={() => setUploadType(type.value)}
                     >
-                      <Text style={[s.chipText, uploadType === type.value && s.chipTextActive]}>
-                        {type.label}
-                      </Text>
+                      <Text style={[s.chipText, uploadType === type.value && s.chipTextActive]}>{type.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
-
               <TouchableOpacity style={s.fileBtn} onPress={pickFile}>
                 <Text style={s.fileBtnLabel}>{uploadFile ? uploadFile.name : 'ВЫБРАТЬ ФАЙЛ (PDF, DOCX, TXT)'}</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[s.primaryBtn, isUploading && s.primaryBtnDisabled]}
-                onPress={handleUpload}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <ActivityIndicator color={colors.bg} />
-                ) : (
-                  <Text style={s.primaryBtnText}>UPLOAD</Text>
-                )}
+              <TouchableOpacity style={[s.primaryBtn, isUploading && s.disabledBtn]} onPress={handleUpload} disabled={isUploading}>
+                {isUploading ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>UPLOAD</Text>}
               </TouchableOpacity>
             </View>
 
             <View style={s.section}>
               <Text style={s.sectionKicker}>Загруженные документы · {documents.length}</Text>
-
               {documents.length === 0 ? (
                 <View style={s.emptyCard}>
-                  <Text style={s.emptyText}>Документов пока нет. Загрузите первый файл выше.</Text>
+                  <Text style={s.emptyText}>Документов пока нет.</Text>
                 </View>
               ) : (
                 <View style={s.list}>
                   {documents.map((doc) => (
                     <View key={doc.id} style={s.docRow}>
                       <View style={s.docCopy}>
-                        <Text style={s.docTitle}>{doc.title}</Text>
+                        <Text style={s.docTitle}>{doc.title || doc.fileUrl || 'Документ'}</Text>
                         <Text style={s.docMeta}>
-                          {doc.category} · {doc.type} · {doc.filename}
+                          {doc.category || '—'} · {doc.type || '—'} · chunks: {doc.chunkCount ?? '—'} · {doc.indexed === false ? 'not indexed' : 'indexed'}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        style={s.dangerBtn}
-                        onPress={() => handleDelete(doc.id, doc.title)}
-                      >
-                        <Text style={s.dangerBtnText}>УДАЛИТЬ</Text>
+                      <TouchableOpacity style={s.dangerBtn} onPress={() => handleDelete(doc.id, doc.title)}>
+                        <Text style={s.dangerBtnText}>DELETE</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -326,99 +445,115 @@ export default function AdminScreen() {
           <>
             <View style={s.card}>
               <Text style={s.sectionKicker}>Статус индекса</Text>
-
               <View style={s.metricsRow}>
                 <View style={s.metricCard}>
-                  <Text style={s.metricValue}>{indexStatus?.documentCount ?? 0}</Text>
+                  <Text style={s.metricValue}>{indexedDocuments}</Text>
                   <Text style={s.metricLabel}>documents</Text>
                 </View>
                 <View style={s.metricCard}>
-                  <Text style={s.metricValue}>{indexStatus?.chunkCount ?? 0}</Text>
+                  <Text style={s.metricValue}>{totalChunks}</Text>
                   <Text style={s.metricLabel}>chunks</Text>
                 </View>
               </View>
-
-              <View style={s.detailRow}>
-                <Text style={s.fieldLabel}>Последняя индексация</Text>
-                <Text style={s.detailValue}>
-                  {indexStatus?.lastIndexed
-                    ? new Date(indexStatus.lastIndexed).toLocaleString('ru-RU')
-                    : 'Никогда'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={[s.primaryBtn, isReindexing && s.primaryBtnDisabled]}
-                onPress={handleReindex}
-                disabled={isReindexing}
-              >
-                {isReindexing ? (
-                  <ActivityIndicator color={colors.bg} />
-                ) : (
-                  <Text style={s.primaryBtnText}>REINDEX</Text>
-                )}
+              <TouchableOpacity style={[s.primaryBtn, isReindexing && s.disabledBtn]} onPress={handleReindex} disabled={isReindexing}>
+                {isReindexing ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>REINDEX</Text>}
               </TouchableOpacity>
             </View>
 
             <View style={s.card}>
-              <Text style={s.sectionKicker}>Описание</Text>
-              <Text style={s.bodyText}>
-                Векторный индекс используется AI-ассистентом для поиска контекста в загруженных документах.
-                Запускайте реиндексацию после массовой загрузки или удаления файлов.
-              </Text>
+              <Text style={s.sectionKicker}>Корпоративный портал</Text>
+              <Text style={s.bodyText}>Настроено: {corporateSync?.configured ? 'да' : 'нет'}</Text>
+              <Text style={s.bodyText}>Статус: {corporateSync?.running ? 'идет синхронизация' : 'ожидание'}</Text>
+              <Text style={s.bodyText}>Последняя синхронизация: {formatDateTime(corporateSync?.lastSync)}</Text>
+              <Text style={s.bodyText}>Следующая синхронизация: {formatDateTime(corporateSync?.nextSync)}</Text>
+              <Text style={s.bodyText}>Расписание: {corporateSync?.schedule || '—'}</Text>
+              <TouchableOpacity style={[s.secondaryBtn, isSyncing && s.disabledBtn]} onPress={handleCorporateSync} disabled={isSyncing}>
+                {isSyncing ? <ActivityIndicator color={colors.ink} /> : <Text style={s.secondaryBtnText}>SYNC CORPORATE</Text>}
+              </TouchableOpacity>
             </View>
           </>
         ) : null}
 
         {tab === 'employees' ? (
-          <View style={s.card}>
-            <Text style={s.sectionKicker}>Поиск сотрудника</Text>
-
-            <View style={s.field}>
-              <Text style={s.fieldLabel}>ФИО или часть имени</Text>
-              <TextInput
-                style={s.input}
-                placeholder="Иванов"
-                placeholderTextColor={colors.ink3}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearch}
-                returnKeyType="search"
-              />
+          <>
+            <View style={s.card}>
+              <Text style={s.sectionKicker}>Поиск сотрудника</Text>
+              <AdminField colors={colors} field={{ key: 'query', label: 'ФИО или часть имени' }} value={searchQuery} onChange={(_, v) => setSearchQuery(v)} />
+              <TouchableOpacity style={[s.primaryBtn, isSearching && s.disabledBtn]} onPress={handleSearch} disabled={isSearching || !searchQuery.trim()}>
+                {isSearching ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>SEARCH</Text>}
+              </TouchableOpacity>
+              {searchResults.length > 0 ? (
+                <View style={s.list}>
+                  {searchResults.map((emp) => {
+                    const empId = getEmployeeId(emp);
+                    return (
+                      <TouchableOpacity key={empId || emp.id} style={s.empCard} onPress={() => selectEmployee(emp)}>
+                        <Text style={s.empName}>{pick(emp, 'full_name', 'fullName') || 'Сотрудник'}</Text>
+                        <Text style={s.empMeta}>ID: {empId || '—'} · {pick(emp, 'position', 'position') || '—'} · {pick(emp, 'department', 'department') || '—'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : searchQuery.trim() && !isSearching ? (
+                <Text style={s.bodyText}>Совпадений не найдено.</Text>
+              ) : null}
             </View>
 
-            <TouchableOpacity
-              style={[s.primaryBtn, isSearching && s.primaryBtnDisabled]}
-              onPress={handleSearch}
-              disabled={isSearching || !searchQuery.trim()}
-            >
-              {isSearching ? (
-                <ActivityIndicator color={colors.bg} />
-              ) : (
-                <Text style={s.primaryBtnText}>SEARCH</Text>
-              )}
-            </TouchableOpacity>
-
-            {searchResults.length > 0 ? (
-              <View style={s.list}>
-                {searchResults.map((emp) => (
-                  <View key={emp.id ?? emp.employee_id} style={s.empCard}>
-                    <Text style={s.empName}>{emp.full_name}</Text>
-                    <Text style={s.empMeta}>
-                      ID: {emp.employee_id} · {emp.position || '—'} · {emp.department || '—'}
-                    </Text>
-                  </View>
-                ))}
+            {isLoadingEmployee ? (
+              <View style={s.card}>
+                <ActivityIndicator color={colors.moss} />
               </View>
-            ) : isSearching ? null : searchQuery.trim() ? (
-              <Text style={s.bodyText}>Совпадений не найдено.</Text>
+            ) : selectedEmployee ? (
+              <View style={s.card}>
+                <Text style={s.sectionKicker}>Параметры пользователя</Text>
+                <AdminField colors={colors} field={{ key: 'employeeId', label: 'Табельный номер' }} value={employeeForm.employeeId} onChange={updateEmployeeForm} editable={false} />
+                {USER_FIELDS.map((field) => (
+                  <AdminField key={field.key} colors={colors} field={field} value={employeeForm[field.key]} onChange={updateEmployeeForm} />
+                ))}
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, { color: colors.ink3 }]}>Роль</Text>
+                  <View style={s.chipsRow}>
+                    {['employee', 'admin'].map((role) => (
+                      <TouchableOpacity
+                        key={role}
+                        style={[s.chip, employeeForm.role === role && s.chipActive]}
+                        onPress={() => updateEmployeeForm('role', role)}
+                      >
+                        <Text style={[s.chipText, employeeForm.role === role && s.chipTextActive]}>{role.toUpperCase()}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <TouchableOpacity style={[s.primaryBtn, isSavingEmployee && s.disabledBtn]} onPress={saveEmployee} disabled={isSavingEmployee}>
+                  {isSavingEmployee ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>SAVE USER</Text>}
+                </TouchableOpacity>
+              </View>
             ) : null}
-          </View>
+          </>
         ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  field: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontFamily: 'JetBrainsMono_500Medium',
+  },
+  input: {
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+  },
+});
 
 const makeStyles = (colors) =>
   StyleSheet.create({
@@ -491,6 +626,23 @@ const makeStyles = (colors) =>
       gap: spacing.lg,
       paddingBottom: spacing.xxxl,
     },
+    section: {
+      gap: spacing.sm,
+    },
+    card: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    sectionKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
     errorBanner: {
       backgroundColor: colors.hotWash,
       borderWidth: 1,
@@ -502,43 +654,6 @@ const makeStyles = (colors) =>
       color: colors.hot,
       fontSize: 13,
       lineHeight: 19,
-      fontFamily: 'Inter_400Regular',
-    },
-    card: {
-      backgroundColor: colors.paper,
-      borderWidth: 1,
-      borderColor: colors.line,
-      padding: spacing.lg,
-      gap: spacing.md,
-    },
-    section: {
-      gap: spacing.sm,
-    },
-    sectionKicker: {
-      color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      fontFamily: 'JetBrainsMono_600SemiBold',
-    },
-    field: {
-      gap: 6,
-    },
-    fieldLabel: {
-      color: colors.ink3,
-      fontSize: 10,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      fontFamily: 'JetBrainsMono_500Medium',
-    },
-    input: {
-      backgroundColor: colors.bg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      paddingHorizontal: spacing.md,
-      paddingVertical: 12,
-      fontSize: 14,
-      color: colors.ink,
       fontFamily: 'Inter_400Regular',
     },
     chipsRow: {
@@ -585,11 +700,21 @@ const makeStyles = (colors) =>
       paddingVertical: 14,
       alignItems: 'center',
     },
-    primaryBtnDisabled: {
-      opacity: 0.5,
-    },
     primaryBtnText: {
       color: colors.bg,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    secondaryBtn: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingVertical: 14,
+      alignItems: 'center',
+      backgroundColor: 'transparent',
+    },
+    secondaryBtnText: {
+      color: colors.ink2,
       fontSize: 11,
       letterSpacing: 1.2,
       fontFamily: 'JetBrainsMono_600SemiBold',
@@ -606,6 +731,9 @@ const makeStyles = (colors) =>
       fontSize: 10,
       letterSpacing: 1,
       fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    disabledBtn: {
+      opacity: 0.5,
     },
     list: {
       gap: spacing.sm,
@@ -634,6 +762,19 @@ const makeStyles = (colors) =>
       lineHeight: 16,
       fontFamily: 'JetBrainsMono_400Regular',
     },
+    emptyCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderStyle: 'dashed',
+      padding: spacing.lg,
+    },
+    emptyText: {
+      color: colors.ink3,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily: 'Inter_400Regular',
+    },
     metricsRow: {
       flexDirection: 'row',
       gap: spacing.sm,
@@ -658,35 +799,10 @@ const makeStyles = (colors) =>
       textTransform: 'uppercase',
       fontFamily: 'JetBrainsMono_400Regular',
     },
-    detailRow: {
-      gap: 6,
-      borderTopWidth: 1,
-      borderTopColor: colors.line,
-      borderStyle: 'dashed',
-      paddingTop: spacing.md,
-    },
-    detailValue: {
-      color: colors.ink,
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-    },
     bodyText: {
       color: colors.ink2,
       fontSize: 13,
       lineHeight: 20,
-      fontFamily: 'Inter_400Regular',
-    },
-    emptyCard: {
-      backgroundColor: colors.paper,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderStyle: 'dashed',
-      padding: spacing.lg,
-    },
-    emptyText: {
-      color: colors.ink3,
-      fontSize: 13,
-      lineHeight: 19,
       fontFamily: 'Inter_400Regular',
     },
     empCard: {

@@ -263,23 +263,28 @@ export default function ChatScreen({ navigation, route }) {
         cancelStreamRef.current = null;
 
         // Сохраняем сообщение бота даже если не все токены пришли
-        const finalMessages = messages.map((message) =>
-          message.id === botId ? { ...message, text: fullText || 'Ответ прерван', source } : message
-        );
+        setMessages((prev) => {
+          let finalMessages = prev.map((message) =>
+            message.id === botId ? { ...message, text: fullText || 'Ответ прерван', source } : message
+          );
 
-        // Если сообщение бота ещё не добавлено, добавляем его
-        if (!botMessageAdded && fullText) {
-          finalMessages.push({
-            id: botId,
-            text: fullText,
-            sender: 'bot',
-            timestamp: new Date().toISOString(),
-            source,
-          });
-        }
+          // Если сообщение бота ещё не добавлено, добавляем его
+          if (!botMessageAdded && fullText) {
+            finalMessages = [
+              ...finalMessages,
+              {
+                id: botId,
+                text: fullText,
+                sender: 'bot',
+                timestamp: new Date().toISOString(),
+                source,
+              },
+            ];
+          }
 
-        setMessages(finalMessages);
-        await saveMessages(finalMessages, nextTitle);
+          saveMessages(finalMessages, nextTitle);
+          return finalMessages;
+        });
       },
       async () => {
         setIsStreaming(false);

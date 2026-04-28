@@ -33,6 +33,12 @@ export function AuthProvider({ children }) {
     setEmployeeState(employeeData);
   };
 
+  const updateEmployee = async (employeeData) => {
+    const nextEmployee = { ...(employee || {}), ...(employeeData || {}) };
+    await setEmployee(nextEmployee);
+    setEmployeeState(nextEmployee);
+  };
+
   const logout = async () => {
     await clearToken();
     await clearEmployee();
@@ -41,7 +47,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isLoading, employee, token, login, logout }}>
+    <AuthContext.Provider value={{ isLoading, employee, token, login, logout, updateEmployee }}>
       {children}
     </AuthContext.Provider>
   );
