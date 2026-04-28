@@ -48,7 +48,14 @@ export default function AppTopBar({
             <Text style={s.logoText}>T</Text>
           </View>
           <View style={s.brandText}>
-            <Text style={s.brand}>Техна.</Text>
+            <View style={s.brandRow}>
+              <Text style={s.brand}>Техна.</Text>
+              {employee?.role === 'admin' ? (
+                <View style={s.adminBadge}>
+                  <Text style={s.adminBadgeText}>ADMIN</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={s.brandSub}>AI-ассистент + форум</Text>
           </View>
         </View>
@@ -134,6 +141,22 @@ const makeStyles = (colors) =>
       color: colors.ink,
       fontSize: 22,
       fontFamily: 'Fraunces_400Regular',
+    },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    adminBadge: {
+      backgroundColor: colors.pistachio,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    adminBadgeText: {
+      color: colors.pistachioInk,
+      fontSize: 9,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
     brandSub: {
       color: colors.ink3,

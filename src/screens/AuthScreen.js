@@ -105,8 +105,8 @@ export default function AuthScreen() {
               <View style={s.logoBox}>
                 <Text style={s.logoText}>T</Text>
               </View>
-              <Text style={s.brand}>Forum.</Text>
-              <Text style={s.kicker}>терминал общения</Text>
+              <Text style={s.brand}>Техна.</Text>
+              <Text style={s.kicker}>AI-ассистент + форум</Text>
             </View>
 
             <View style={s.tabs}>

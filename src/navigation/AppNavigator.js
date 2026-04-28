@@ -2,31 +2,56 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import ChatNavigator from './ChatNavigator';
 import ForumNavigator from './ForumNavigator';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import AdminScreen from '../screens/admin/AdminScreen';
 import AuthScreen from '../screens/AuthScreen';
 import { useAuth } from '../contexts/AuthContext';
 
 const Tab = createBottomTabNavigator();
 const Root = createStackNavigator();
 
-function TabIcon({ focused, label, marker, colors }) {
+function TabItem({ focused, label, iconName, colors }) {
   return (
-    <View style={styles.tabIconContainer}>
+    <View style={styles.itemRoot}>
       <View
         style={[
-          styles.tabMarker,
+          styles.indicator,
+          { backgroundColor: focused ? colors.pistachio : 'transparent' },
+        ]}
+      />
+      <View
+        style={[
+          styles.pill,
+          focused
+            ? {
+                backgroundColor: colors.mossWash,
+                borderColor: colors.moss,
+              }
+            : {
+                backgroundColor: 'transparent',
+                borderColor: 'transparent',
+              },
+        ]}
+      >
+        <Feather
+          name={iconName}
+          size={18}
+          color={focused ? colors.moss : colors.ink3}
+        />
+      </View>
+      <Text
+        style={[
+          styles.label,
           {
-            backgroundColor: focused ? colors.ink : colors.paper,
-            borderColor: focused ? colors.ink : colors.line,
+            color: focused ? colors.moss : colors.ink3,
+            fontFamily: focused ? 'JetBrainsMono_600SemiBold' : 'JetBrainsMono_500Medium',
           },
         ]}
       >
-        <Text style={[styles.tabMarkerText, { color: focused ? colors.bg : colors.ink2 }]}>{marker}</Text>
-      </View>
-      <Text style={[styles.tabLabel, { color: focused ? colors.tabActive : colors.tabInactive }]}>
         {label}
       </Text>
     </View>
@@ -35,6 +60,8 @@ function TabIcon({ focused, label, marker, colors }) {
 
 function MainTabs() {
   const { colors } = useTheme();
+  const { employee } = useAuth();
+  const isAdmin = employee?.role === 'admin';
 
   return (
     <Tab.Navigator
@@ -44,14 +71,14 @@ function MainTabs() {
           backgroundColor: colors.paper,
           borderTopColor: colors.line,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 92 : 78,
-          paddingBottom: Platform.OS === 'ios' ? 26 : 10,
-          paddingTop: 12,
-          paddingHorizontal: 12,
+          height: Platform.OS === 'ios' ? 84 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 22 : 6,
+          paddingTop: 0,
+          paddingHorizontal: 6,
         },
         tabBarShowLabel: false,
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 0,
         },
       }}
     >
@@ -60,7 +87,7 @@ function MainTabs() {
         component={ChatNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="CHAT" marker="AI" colors={colors} />
+            <TabItem focused={focused} label="ЧАТ" iconName="message-circle" colors={colors} />
           ),
         }}
       />
@@ -69,16 +96,27 @@ function MainTabs() {
         component={ForumNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="FORUM" marker="KB" colors={colors} />
+            <TabItem focused={focused} label="ФОРУМ" iconName="book-open" colors={colors} />
           ),
         }}
       />
+      {isAdmin ? (
+        <Tab.Screen
+          name="AdminTab"
+          component={AdminScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabItem focused={focused} label="АДМИН" iconName="shield" colors={colors} />
+            ),
+          }}
+        />
+      ) : null}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="SETTINGS" marker="ST" colors={colors} />
+            <TabItem focused={focused} label="ПРОФИЛЬ" iconName="user" colors={colors} />
           ),
         }}
       />
@@ -101,26 +139,27 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  tabIconContainer: {
+  itemRoot: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 4,
+    paddingTop: 6,
+  },
+  indicator: {
+    width: 28,
+    height: 2,
+    marginBottom: 2,
+  },
+  pill: {
+    width: 44,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-  },
-  tabMarker: {
-    minWidth: 40,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
     borderWidth: 1,
-    alignItems: 'center',
   },
-  tabMarkerText: {
-    fontSize: 10,
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    letterSpacing: 0.6,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontFamily: 'JetBrainsMono_500Medium',
-    letterSpacing: 1,
+  label: {
+    fontSize: 9,
+    letterSpacing: 1.2,
   },
 });

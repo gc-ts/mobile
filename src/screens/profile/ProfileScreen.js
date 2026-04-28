@@ -182,6 +182,12 @@ export default function ProfileScreen() {
 
           <Text style={s.position}>{pick(profile, 'position', 'position') || 'Должность не указана'}</Text>
           <Text style={s.department}>{pick(profile, 'department', 'department') || 'Отдел не указан'}</Text>
+
+          <View style={s.roleBadge}>
+            <Text style={s.roleBadgeText}>
+              {pick(profile, 'role', 'role') === 'admin' ? '★ ADMIN' : 'EMPLOYEE'}
+            </Text>
+          </View>
         </View>
 
         <View style={s.section}>
@@ -352,6 +358,20 @@ const makeStyles = (colors) =>
       textTransform: 'uppercase',
       fontFamily: 'JetBrainsMono_400Regular',
     },
+    roleBadge: {
+      marginTop: spacing.md,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.bg,
+    },
+    roleBadgeText: {
+      color: colors.moss,
+      fontSize: 10,
+      letterSpacing: 1.4,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
     section: {
       gap: spacing.sm,
     },
@@ -396,12 +416,14 @@ const makeStyles = (colors) =>
       gap: spacing.sm,
     },
     primaryBtn: {
-      backgroundColor: colors.ink,
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: colors.hot,
       paddingVertical: 14,
       alignItems: 'center',
     },
     primaryBtnText: {
-      color: colors.bg,
+      color: colors.hot,
       fontSize: 10,
       letterSpacing: 1.2,
       fontFamily: 'JetBrainsMono_600SemiBold',

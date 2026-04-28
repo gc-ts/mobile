@@ -5,6 +5,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -23,6 +24,38 @@ const FORUM_RULES = [
   'Перед новой темой проверьте похожие обсуждения.',
   'Помогайте новичкам и уточняйте контекст.',
 ];
+
+const MOCK_REPLIES = {
+  1: [
+    {
+      id: 1,
+      content:
+        'У меня первый день прошел очень спокойно. На ресепшене встретили, провели экскурсию по офису, показали рабочее место. Ноутбук уже был настроен и ждал на столе. С собой нужен только паспорт для оформления пропуска.',
+      author: { fullName: 'Петрова Мария', position: 'Designer' },
+      likesCount: 5,
+      isLikedByUser: false,
+      createdAt: '2026-04-27T11:00:00Z',
+    },
+    {
+      id: 2,
+      content:
+        'Не забудь взять наушники! В опен-спейсе бывает шумно. И да, в первый день обычно знакомят с командой и проводят вводный инструктаж по безопасности.',
+      author: { fullName: 'Сидоров Петр', position: 'Middle Developer' },
+      likesCount: 3,
+      isLikedByUser: false,
+      createdAt: '2026-04-27T12:30:00Z',
+    },
+    {
+      id: 3,
+      content:
+        'У меня в первый день был welcome-lunch с командой. Очень помогло познакомиться и расслабиться. Не переживай, все будет хорошо!',
+      author: { fullName: 'Козлова Анна', position: 'Junior Frontend' },
+      likesCount: 8,
+      isLikedByUser: true,
+      createdAt: '2026-04-27T14:15:00Z',
+    },
+  ],
+};
 
 function formatDate(dateValue) {
   const date = new Date(dateValue);
@@ -60,6 +93,40 @@ export default function TopicScreen({ navigation, route }) {
   const { topicId } = route.params;
   const topic = topics.find((item) => item.id === topicId);
   const [liked, setLiked] = useState(false);
+  const [replies, setReplies] = useState(MOCK_REPLIES[topicId] || []);
+  const [replyText, setReplyText] = useState('');
+
+  const handleReplyLike = (replyId) => {
+    setReplies((prev) =>
+      prev.map((reply) =>
+        reply.id === replyId
+          ? {
+              ...reply,
+              isLikedByUser: !reply.isLikedByUser,
+              likesCount: reply.likesCount + (reply.isLikedByUser ? -1 : 1),
+            }
+          : reply
+      )
+    );
+  };
+
+  const handleSubmitReply = () => {
+    const trimmed = replyText.trim();
+    if (!trimmed) return;
+    const newReply = {
+      id: Date.now(),
+      content: trimmed,
+      author: {
+        fullName: employee?.full_name || 'Вы',
+        position: employee?.position || 'Сотрудник',
+      },
+      likesCount: 0,
+      isLikedByUser: false,
+      createdAt: new Date().toISOString(),
+    };
+    setReplies((prev) => [...prev, newReply]);
+    setReplyText('');
+  };
 
   const relatedTopics = useMemo(
     () =>
@@ -149,6 +216,77 @@ export default function TopicScreen({ navigation, route }) {
           <TouchableOpacity style={s.actionBtn} onPress={handleShare}>
             <Text style={s.actionBtnText}>ПОДЕЛИТЬСЯ</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Ответы · {replies.length}</Text>
+
+          {replies.length === 0 ? (
+            <View style={s.emptyReplies}>
+              <Text style={s.emptyRepliesText}>
+                Пока нет ответов. Будьте первым, кто поделится опытом.
+              </Text>
+            </View>
+          ) : (
+            <View style={s.repliesList}>
+              {replies.map((reply) => (
+                <View key={reply.id} style={s.replyCard}>
+                  <View style={s.replyAvatarSquare}>
+                    <Text style={s.replyAvatarText}>{getInitials(reply.author.fullName)}</Text>
+                  </View>
+                  <View style={s.replyBody}>
+                    <View style={s.replyHeader}>
+                      <Text style={s.replyAuthor}>{reply.author.fullName}</Text>
+                      <Text style={s.replyRole}>{reply.author.position}</Text>
+                    </View>
+                    <Text style={s.replyContent}>{reply.content}</Text>
+                    <View style={s.replyFooter}>
+                      <Text style={s.replyDate}>{formatDate(reply.createdAt)}</Text>
+                      <TouchableOpacity onPress={() => handleReplyLike(reply.id)}>
+                        <Text
+                          style={[
+                            s.replyLike,
+                            reply.isLikedByUser && s.replyLikeActive,
+                          ]}
+                        >
+                          ★ {reply.likesCount}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <View style={s.replyForm}>
+            <Text style={s.replyKicker}>Ваш ответ</Text>
+            <TextInput
+              style={s.replyInput}
+              placeholder="Напишите ваш ответ..."
+              placeholderTextColor={colors.ink3}
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+              textAlignVertical="top"
+            />
+            <View style={s.replyActions}>
+              <TouchableOpacity
+                style={s.secondaryReplyBtn}
+                onPress={() => setReplyText('')}
+                disabled={!replyText.trim()}
+              >
+                <Text style={s.secondaryReplyText}>ОЧИСТИТЬ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.primaryReplyBtn, !replyText.trim() && s.primaryReplyBtnDisabled]}
+                onPress={handleSubmitReply}
+                disabled={!replyText.trim()}
+              >
+                <Text style={s.primaryReplyText}>ОТПРАВИТЬ</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <View style={s.contextCard}>
@@ -474,5 +612,145 @@ const makeStyles = (colors) =>
       fontSize: 13,
       lineHeight: 20,
       fontFamily: 'Inter_400Regular',
+    },
+    repliesList: {
+      gap: spacing.sm,
+    },
+    replyCard: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.md,
+      flexDirection: 'row',
+      gap: spacing.md,
+      alignItems: 'flex-start',
+    },
+    replyAvatarSquare: {
+      width: 40,
+      height: 40,
+      backgroundColor: colors.moss,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    replyAvatarText: {
+      color: colors.paper,
+      fontSize: 13,
+      fontFamily: 'Fraunces_500Medium',
+    },
+    replyBody: {
+      flex: 1,
+      gap: 6,
+    },
+    replyHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flexWrap: 'wrap',
+    },
+    replyAuthor: {
+      color: colors.ink,
+      fontSize: 13,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    replyRole: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    replyContent: {
+      color: colors.ink2,
+      fontSize: 14,
+      lineHeight: 21,
+      fontFamily: 'Inter_400Regular',
+    },
+    replyFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginTop: 2,
+    },
+    replyDate: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_400Regular',
+    },
+    replyLike: {
+      color: colors.ink3,
+      fontSize: 11,
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    replyLikeActive: {
+      color: colors.hot,
+    },
+    emptyReplies: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.line,
+      padding: spacing.lg,
+    },
+    emptyRepliesText: {
+      color: colors.ink3,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily: 'Inter_400Regular',
+    },
+    replyForm: {
+      backgroundColor: colors.paper,
+      borderWidth: 1,
+      borderColor: colors.line,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    replyKicker: {
+      color: colors.ink3,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    replyInput: {
+      backgroundColor: colors.bg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      minHeight: 88,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.ink,
+      fontFamily: 'Inter_400Regular',
+    },
+    replyActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    secondaryReplyBtn: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    secondaryReplyText: {
+      color: colors.ink2,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
+    },
+    primaryReplyBtn: {
+      flex: 1,
+      backgroundColor: colors.ink,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    primaryReplyBtnDisabled: {
+      opacity: 0.5,
+    },
+    primaryReplyText: {
+      color: colors.bg,
+      fontSize: 10,
+      letterSpacing: 1,
+      fontFamily: 'JetBrainsMono_600SemiBold',
     },
   });
