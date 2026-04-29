@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontSize: 9,
-    letterSpacing: 1.2,
+    fontSize: 8,
+    letterSpacing: 1.0,
   },
 });
