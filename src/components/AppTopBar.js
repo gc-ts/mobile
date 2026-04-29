@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -61,8 +62,8 @@ export default function AppTopBar({
         </View>
 
         <View style={s.actions}>
-          <TouchableOpacity style={s.ghostBtn} onPress={toggleTheme}>
-            <Text style={s.ghostBtnText}>{isDark ? 'LIGHT' : 'DARK'}</Text>
+          <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
+            <Feather name={isDark ? 'sun' : 'moon'} size={18} color={colors.ink} />
           </TouchableOpacity>
         </View>
       </View>
@@ -157,18 +158,15 @@ const makeStyles = (colors) =>
       gap: spacing.sm,
       maxWidth: '52%',
     },
-    ghostBtn: {
+    themeBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 999,
       borderWidth: 1,
       borderColor: colors.line,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      backgroundColor: 'transparent',
-    },
-    ghostBtnText: {
-      color: colors.ink2,
-      fontSize: 10,
-      letterSpacing: 0.8,
-      fontFamily: 'JetBrainsMono_600SemiBold',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.paper,
     },
     userChip: {
       flexDirection: 'row',
