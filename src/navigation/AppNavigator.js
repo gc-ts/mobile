@@ -36,6 +36,7 @@ function TabItem({ focused, label, iconName, colors }) {
             fontFamily: focused ? 'JetBrainsMono_600SemiBold' : 'JetBrainsMono_500Medium',
           },
         ]}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -132,6 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: 2,
     paddingTop: 4,
+    paddingHorizontal: 2,
   },
   indicator: {
     width: 24,
@@ -145,7 +147,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontSize: 8,
-    letterSpacing: 1.0,
+    fontSize: 9,
+    letterSpacing: 0.4,
+    minWidth: 66,
+    textAlign: 'center',
+    flexShrink: 1,
+    includeFontPadding: false,
   },
 });
