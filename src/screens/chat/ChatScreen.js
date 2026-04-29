@@ -50,10 +50,11 @@ function BotLogo({ size = 40, colors }) {
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: 999,
         backgroundColor: colors.moss,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
       }}
     >
       <Text
@@ -361,7 +362,7 @@ export default function ChatScreen({ navigation, route }) {
             {item.source ? (
               <View style={s.sourceRow}>
                 <Feather name="file-text" size={11} color={colors.ink3} />
-                <Text style={s.sourceText} numberOfLines={1}>{item.source}</Text>
+                <Text style={s.sourceText}>{item.source}</Text>
               </View>
             ) : null}
           </View>
@@ -448,7 +449,7 @@ export default function ChatScreen({ navigation, route }) {
         <View style={s.inputWrap}>
           <View style={s.inputBar}>
             <TextInput
-              style={s.input}
+              style={[s.input, !inputValue && s.inputEmpty]}
               placeholder="Сообщение для Техны…"
               placeholderTextColor={colors.ink3}
               value={inputValue}
@@ -580,12 +581,15 @@ const makeStyles = (colors) =>
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
       borderRadius: 4,
+      justifyContent: 'center',
     },
     botBubbleText: {
       color: colors.ink,
       fontSize: 15,
       lineHeight: 23,
       fontFamily: 'Inter_400Regular',
+      includeFontPadding: false,
+      textAlignVertical: 'center',
     },
     botTime: {
       color: colors.ink3,
@@ -595,7 +599,7 @@ const makeStyles = (colors) =>
     },
     sourceRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 6,
       marginTop: spacing.sm,
       paddingTop: spacing.sm,
@@ -607,6 +611,7 @@ const makeStyles = (colors) =>
       flex: 1,
       color: colors.ink3,
       fontSize: 11,
+      lineHeight: 16,
       fontFamily: 'JetBrainsMono_400Regular',
     },
     typingBubble: {
@@ -711,7 +716,13 @@ const makeStyles = (colors) =>
       lineHeight: 20,
       fontFamily: 'Inter_400Regular',
       paddingVertical: 0,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
       maxHeight: 70,
+    },
+    inputEmpty: {
+      height: 32,
+      lineHeight: 32,
     },
     sendBtn: {
       width: 32,

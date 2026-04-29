@@ -324,10 +324,11 @@ const styles = StyleSheet.create({
   botAvatar: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 999,
     backgroundColor: colors.accentPrimary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   botAvatarText: {
     fontSize: 16,
