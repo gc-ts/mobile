@@ -142,6 +142,7 @@ export default function AdminScreen() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeForm, setEmployeeForm] = useState(normalizeEmployee(null));
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -155,6 +156,11 @@ export default function AdminScreen() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'employees') return;
+    loadEmployees();
+  }, [tab]);
 
   async function loadInitialData(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
@@ -277,17 +283,39 @@ export default function AdminScreen() {
   }
 
   async function handleSearch() {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      await loadEmployees();
+      return;
+    }
     setIsSearching(true);
     setSelectedEmployee(null);
     try {
       const res = await employeeAPI.searchByName(searchQuery.trim());
-      setSearchResults(Array.isArray(res) ? res : res.employees || []);
+      setSearchResults(Array.isArray(res) ? res : res.results || res.employees || []);
     } catch {
       setSearchResults([]);
       Alert.alert('Ошибка', 'Не удалось выполнить поиск сотрудника.');
     } finally {
       setIsSearching(false);
+    }
+  }
+
+  async function loadEmployees() {
+    setIsLoadingEmployees(true);
+    setSelectedEmployee(null);
+    try {
+      const res = await employeeAPI.getAdminList({ limit: 200, offset: 0 });
+      setSearchResults(Array.isArray(res) ? res : res.employees || []);
+    } catch (listError) {
+      setSearchResults([]);
+      Alert.alert(
+        'РћС€РёР±РєР°',
+        listError?.response?.data?.message ||
+          listError?.response?.data?.error ||
+          'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ.'
+      );
+    } finally {
+      setIsLoadingEmployees(false);
     }
   }
 
@@ -479,8 +507,11 @@ export default function AdminScreen() {
             <View style={s.card}>
               <Text style={s.sectionKicker}>Поиск сотрудника</Text>
               <AdminField colors={colors} field={{ key: 'query', label: 'ФИО или часть имени' }} value={searchQuery} onChange={(_, v) => setSearchQuery(v)} />
-              <TouchableOpacity style={[s.primaryBtn, isSearching && s.disabledBtn]} onPress={handleSearch} disabled={isSearching || !searchQuery.trim()}>
+              <TouchableOpacity style={[s.primaryBtn, isSearching && s.disabledBtn]} onPress={handleSearch} disabled={isSearching}>
                 {isSearching ? <ActivityIndicator color={colors.bg} /> : <Text style={s.primaryBtnText}>SEARCH</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.secondaryBtn, isLoadingEmployees && s.disabledBtn]} onPress={loadEmployees} disabled={isLoadingEmployees}>
+                {isLoadingEmployees ? <ActivityIndicator color={colors.ink} /> : <Text style={s.secondaryBtnText}>LOAD ALL USERS</Text>}
               </TouchableOpacity>
               {searchResults.length > 0 ? (
                 <View style={s.list}>

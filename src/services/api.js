@@ -211,6 +211,15 @@ export const employeeAPI = {
   searchByName: (name) =>
     api.get(`/employee/search/by-name?name=${encodeURIComponent(name)}`).then((r) => r.data),
 
+  getAdminList: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (typeof params.limit === 'number') query.append('limit', String(params.limit));
+    if (typeof params.offset === 'number') query.append('offset', String(params.offset));
+    const q = query.toString();
+    return api.get(q ? `/employee/admin/list?${q}` : '/employee/admin/list').then((r) => r.data);
+  },
+
   updateEmployee: (employeeId, data) =>
     api.put(`/employee/${employeeId}`, data).then((r) => r.data.employee || r.data),
 };
